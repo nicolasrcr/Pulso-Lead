@@ -1,0 +1,2 @@
+{ "name": "@pulso/jobs", "version": "0.0.0", "private": true, "type": "module",
+  "dependencies": { "@pulso/domain": "workspace:*" } }

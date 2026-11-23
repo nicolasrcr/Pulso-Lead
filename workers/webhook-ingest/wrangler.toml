@@ -1,0 +1,6 @@
+name = "pulso-webhook-ingest"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+
+# Segredos (wrangler secret put): INGEST_FORWARD_URL, INGEST_FORWARD_TOKEN
+# Os segredos de assinatura por projeto/provedor ficam no banco e são resolvidos pela API.

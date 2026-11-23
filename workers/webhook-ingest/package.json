@@ -1,0 +1,2 @@
+{ "name": "@pulso/webhook-ingest", "version": "0.0.0", "private": true, "type": "module",
+  "scripts": { "test": "vitest run" }, "devDependencies": { "vitest": "^3.0.0" } }

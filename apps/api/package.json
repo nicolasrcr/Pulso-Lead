@@ -1,0 +1,9 @@
+{
+  "name": "@pulso/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "vitest run", "typecheck": "tsc -p tsconfig.json", "dev": "node --experimental-strip-types src/server.ts" },
+  "dependencies": { "@pulso/domain": "workspace:*", "@pulso/templates": "workspace:*", "fastify": "^5.0.0", "pg": "^8.13.0" },
+  "devDependencies": { "@types/pg": "^8.11.0", "vitest": "^3.0.0", "typescript": "^5.7.0" }
+}
