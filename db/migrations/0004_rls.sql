@@ -105,29 +105,25 @@ create policy audit_log_tenant on audit_log for all to app_user
   using (app.row_visible(project_id)) with check (app.row_visible(project_id));
 grant select, insert, update, delete on audit_log to app_user;
 
--- Tabelas de tenancy
+-- Tabelas de tenancy: SEM FORCE de propósito. As funções security definer (0005) leem estas tabelas como dono;
+-- com FORCE e dono não-superusuário a policy recursaria. A aplicação conecta como app_user (sujeito a RLS), nunca como dono.
 grant usage on schema app to app_user;
 grant select on organizations, projects, plans, activity_templates to app_user;
-alter table memberships enable row level security; alter table memberships force row level security;
-create policy memberships_self on memberships for select to app_user using (user_id = app.current_user_id());
+alter table memberships enable row level security; create policy memberships_self on memberships for select to app_user using (user_id = app.current_user_id());
 grant select on memberships to app_user;
-alter table app_users enable row level security; alter table app_users force row level security;
-create policy app_users_self on app_users for select to app_user using (id = app.current_user_id());
+alter table app_users enable row level security; create policy app_users_self on app_users for select to app_user using (id = app.current_user_id());
 grant select on app_users to app_user;
-alter table subscriptions enable row level security; alter table subscriptions force row level security;
-create policy subscriptions_org on subscriptions for select to app_user
+alter table subscriptions enable row level security; create policy subscriptions_org on subscriptions for select to app_user
   using (exists (select 1 from memberships m where m.user_id = app.current_user_id() and m.organization_id = subscriptions.organization_id and m.project_id is null and m.approved_at is not null));
 grant select on subscriptions to app_user;
-alter table usage_counters enable row level security; alter table usage_counters force row level security;
-create policy usage_org on usage_counters for select to app_user
+alter table usage_counters enable row level security; create policy usage_org on usage_counters for select to app_user
   using (exists (select 1 from memberships m where m.user_id = app.current_user_id() and m.organization_id = usage_counters.organization_id and m.project_id is null and m.approved_at is not null));
 grant select on usage_counters to app_user;
 
-alter table projects enable row level security; alter table projects force row level security;
-create policy projects_visible on projects for select to app_user using (app.can_access_project(id));
-alter table organizations enable row level security; alter table organizations force row level security;
-create policy organizations_visible on organizations for select to app_user
-  using (exists (select 1 from projects p where p.organization_id = organizations.id and app.can_access_project(p.id)));
+alter table projects enable row level security; create policy projects_visible on projects for select to app_user using (app.can_access_project(id));
+alter table organizations enable row level security; create policy organizations_visible on organizations for select to app_user
+  using (exists (select 1 from app_users u where u.id = app.current_user_id() and u.platform_admin)
+      or exists (select 1 from memberships m where m.user_id = app.current_user_id() and m.organization_id = organizations.id and m.approved_at is not null));
 
 -- Histórico imutável: a aplicação só insere e lê.
 revoke update, delete on order_events, audit_log, commission_ledger, stock_movements from app_user;

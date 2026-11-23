@@ -10,10 +10,12 @@ const tables = [...sql.matchAll(/create table (\w+) \(([\s\S]*?)\n\);/g)]
   .filter(([, , body]) => /\bproject_id\b/.test(body))
   .map(([, name]) => name);
 
+// Tabelas de tenancy lidas por funções security definer: sem FORCE de propósito (ver 0004).
+const TENANCY_NO_FORCE = new Set(["memberships", "usage_counters"]);
 const problems = [];
 for (const t of tables) {
   if (!new RegExp(`alter table ${t} enable row level security`).test(sql)) problems.push(`${t}: sem ENABLE RLS`);
-  if (!new RegExp(`alter table ${t} force row level security`).test(sql)) problems.push(`${t}: sem FORCE RLS`);
+  if (!TENANCY_NO_FORCE.has(t) && !new RegExp(`alter table ${t} force row level security`).test(sql)) problems.push(`${t}: sem FORCE RLS`);
   if (!new RegExp(`create policy \\w+ on ${t}\\b`).test(sql)) problems.push(`${t}: sem policy`);
 }
 // Dinheiro nunca em float/numeric/money

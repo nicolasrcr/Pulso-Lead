@@ -6,4 +6,6 @@ set -euo pipefail
 cd "$(dirname "$0")/../db"
 for f in migrations/*.sql; do echo "-> $f"; psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"; done
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f seed.sql
+# Os testes assumem o papel da aplicação (SET ROLE). Com dono não-superusuário (ex.: Supabase) é preciso o grant.
+psql "$DATABASE_URL" -q -c "grant app_user to current_user with set true" 2>/dev/null || true
 for t in tests/*.sql; do echo "-> $t"; psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$t"; done

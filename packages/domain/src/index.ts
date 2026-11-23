@@ -5,3 +5,4 @@ export * from "./overdue";
 export * from "./volume";
 export * from "./idempotency";
 export type * from "./carrier";
+export * from "./rbac";
