@@ -1,0 +1,18 @@
+{
+  "name": "pulso-lead",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "build": "pnpm -r --if-present build",
+    "lint:sql": "node scripts/check-migrations.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "@types/node": "^22.0.0"
+  }
+}
