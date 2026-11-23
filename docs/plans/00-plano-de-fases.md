@@ -12,11 +12,15 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 - [x] `workers/webhook-ingest`: assinatura HMAC + encaminhamento cru
 - [x] `apps/api`: `withTenant`, `/health`, `/v1/templates/:key`
 
-## Fase 1 — Autenticação, organização e projetos
-- [ ] Login e sessão; `memberships` com aprovação de cadastro
-- [ ] CRUD de organização/projeto; seletor de projeto e "Todos os projetos"
-- [ ] RBAC: capacidades + presets; **checagem no servidor**, UI só esconde
-- [ ] Teste: operador nunca lê projeto alheio (API + RLS)
+## Fase 1 — Autenticação, organização e projetos [feito]
+- [x] Cadastro, login (scrypt), sessão por token opaco (só o hash no banco), logout que revoga
+- [x] `memberships` com solicitação e aprovação de cadastro; anti-escalada (papel e capabilities)
+- [x] Organização (admin da plataforma) e projeto (org_admin) por funções `security definer` com checagem explícita
+- [x] Seletor de projeto e "Todos os projetos" (`x-project-id` validado: inacessível = 403)
+- [x] RBAC: 15 capabilities, 9 presets, **checagem no servidor**; a UI só esconde
+- [x] Testes: isolamento por RLS (SQL), 10 testes de integração da API contra Postgres real como `app_user`
+- Limitação conhecida: gestão de equipe é **por papel** (org_admin/project_admin). Delegar `users.manage` a um operador ainda não dá poder no banco; entra quando houver necessidade.
+- Pendente de operação: limitar tentativas de login (rate limit) e recuperação de senha; entram com o e-mail transacional.
 
 ## Fase 2 — Catálogo, estoque e pedidos
 - [ ] Produto, planos (preço, comissão, BOM), estoque por SKU com mínimo e extrato

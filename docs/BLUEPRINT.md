@@ -44,6 +44,7 @@ Quatro atores: **produtor** (dono do projeto), **afiliados** (vendem), **atenden
 | D15 | Para o go-live: **um template (pós-pago) com status de seed**; editor de templates, segunda atividade e IA vêm depois | [PROP] |
 | D16 | **Conectores de venda como módulo:** entrada de PayT, Braip, B4You e Get Envios, com tabelas de vínculo (produto externo → plano; e-mail → afiliado) e devolução de rastreio com flag `sincronizado` | [PROP] |
 | D17 | **API pública e MCP** (credencial por projeto, escopos `recurso:ação[:all]`) ficam **depois do go-live**; o modelo de dados já reserva as credenciais | [PROP] |
+| D20 | **Autenticação própria** (scrypt + sessão opaca) na API Node, com funções `security definer` para operações administrativas; sem dependência de Supabase Auth | [PROP] |
 | D19 | **J&T primeiro, outras transportadoras depois:** `CarrierAdapter` com contrato testável, credenciais por organização e escolha fixa no go-live (3C.5b) | [DEC] |
 | D18 | **Feature flags por organização e projeto** controlam módulos e marca (ver 3C.3) | [PROP] |
 
@@ -370,6 +371,8 @@ Estimativa grossa [PROP, validar]: Fases 0 e 1 em 2 semanas; 2 e 3 em 3 a 4; 4 e
 - A paleta e as fontes finais saem do Coolors (https://coolors.co/), com o índigo como ponto de partida, registradas como tokens.
 
 ### 3B.7 Lacunas que precisam de decisão
+
+> **Atualização 23/11/2026:** o contrato foi resolvido (multiprojeto, vencimento e razão social) e a **1ª parcela foi paga**. A linha 4 (projeto como linha de produto ou operação separada) segue aberta e só afeta o agrupamento do painel consolidado (Fase 5).
 
 | # | Lacuna | Por que importa | Ação recomendada | Dono |
 |---|---|---|---|---|
