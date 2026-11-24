@@ -12,6 +12,10 @@ import { registerCommissionRoutes } from "./routes/commission.ts";
 import { registerDashboardRoutes } from "./routes/dashboard.ts";
 import { registerOrderRoutes } from "./routes/orders.ts";
 import { makeCpfVault } from "./auth/cpf-vault.ts";
+import { registerWebhookRoutes } from "./routes/webhooks.ts";
+import { registerImportRoutes } from "./routes/imports.ts";
+import { makeSecretBox } from "./webhooks/secret-box.ts";
+import { makeLimiter } from "./rate-limit.ts";
 
 const TEMPLATES = { [posPagoV1.key]: posPagoV1 } as const;
 
@@ -19,10 +23,10 @@ declare module "fastify" {
   interface FastifyRequest { userId?: string; projectId?: string }
 }
 
-export interface AppDeps { pool?: pg.Pool; cpfKey?: string }
+export interface AppDeps { pool?: pg.Pool; cpfKey?: string; rateLimit?: { authPerMin: number; publicPerMin: number } }
 
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: false, maxParamLength: 256 });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.error });
@@ -33,6 +37,16 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     app.log.error(err);
     return reply.code(500).send({ error: "internal_error" });
   });
+
+  // Limites de taxa por IP (login/cadastro e links públicos). Desligado quando `rateLimit` não é informado (testes).
+  if (deps.rateLimit) {
+    const auth = makeLimiter(deps.rateLimit.authPerMin, 60_000), pub = makeLimiter(deps.rateLimit.publicPerMin, 60_000);
+    app.addHook("onRequest", async (req, reply) => {
+      const url = req.url.split("?")[0] ?? "";
+      const lim = url === "/v1/auth/login" || url === "/v1/auth/register" ? auth : url.startsWith("/v1/links/") ? pub : null;
+      if (lim && !lim.take(`${url.startsWith("/v1/links/") ? "l" : "a"}:${req.ip}`)) return reply.code(429).header("retry-after", "60").send({ error: "too_many_requests" });
+    });
+  }
 
   app.get("/health", async () => ({ status: "ok" }));
   app.get<{ Params: { key: string } }>("/v1/templates/:key", async (req, reply) => {
@@ -65,6 +79,8 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     registerCatalogRoutes(app, pool, authenticate);
     registerCommissionRoutes(app, pool, authenticate);
     registerDashboardRoutes(app, pool, authenticate);
+    registerWebhookRoutes(app, pool, authenticate, makeSecretBox(deps.cpfKey ?? ""));
+    registerImportRoutes(app, pool, authenticate, makeCpfVault(deps.cpfKey ?? ""));
     registerOrderRoutes(app, pool, authenticate, makeCpfVault(deps.cpfKey ?? ""));
   }
   return app;

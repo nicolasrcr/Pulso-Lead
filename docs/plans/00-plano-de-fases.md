@@ -52,8 +52,12 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 - Premissa adotada (decisão em aberto): projeto = operação separada; o consolidado soma os projetos visíveis
 
 ## Fase 6 — Webhooks de saída, afiliados e migração
-- [ ] `ORDER_CREATE`, `CHARGE_UPDATED`, `SHIPPING_REGISTER`, `SHIPPING_UPDATE` com HMAC, retry e reenvio manual
-- [ ] Link de afiliado assinado; importação CSV (`import_batches`) idempotente
+- [x] `ORDER_CREATE`, `CHARGE_UPDATED`, `SHIPPING_REGISTER`, `SHIPPING_UPDATE`: fila no banco (payload sem PII), assinatura `t=…,v1=HMAC-SHA256`, retry com backoff (30 s … 6 h, 8 tentativas), reenvio manual, segredo cifrado em repouso e mostrado uma vez, rotação, URL só https e sem destino interno (SSRF), sem seguir redirects
+- [x] Link de afiliado assinado (`/v1/links/:token`, público, HMAC com segredo que não sai do banco); rastreio (`POST /v1/orders/:id/tracking`)
+- [x] Importação CSV idempotente por `id_externo`, erros por linha, linhas "pagas" exigem `orders.status.all`/`billing.status`
+- [x] Jobs (`apps/api/src/jobs.ts`): webhooks a cada 10 s, dashboards a cada hora, inadimplência a cada 6 h; precisam de `SYSTEM_USER_ID` (usuário admin da plataforma)
+- [x] Limite de taxa por IP em login/cadastro e links públicos (fecha pendência da Fase 1)
+- Limite conhecido: DNS que resolve para IP interno só é barrado pela checagem de hostname/IP literal; resolver e validar o IP no envio fica como endurecimento
 
 ## Fase 7 — Backoffice, billing, LGPD e go-live
 - [ ] Back-office do fornecedor: assinaturas, estados, uso; suspensão = somente leitura + exportação

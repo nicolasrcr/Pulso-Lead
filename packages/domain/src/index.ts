@@ -10,3 +10,4 @@ export * from "./cpf";
 export * from "./release";
 export * from "./dashboard";
 export * from "./csv";
+export * from "./import-row";
