@@ -34,3 +34,9 @@ export function deriveBuckets(
   const refs = new Set([`platform:${s.platform}`, `shipping:${s.shipping}`, `payment:${s.payment}`]);
   return t.kanban.filter((b) => b.match.some((m) => refs.has(m))).map((b) => b.key);
 }
+
+/** Transições dos eixos de plataforma e pagamento vêm do template (dados). O envio é do domínio (@pulso/domain). */
+export function canTransitionAxis(t: ActivityTemplate, axis: "platform" | "payment" | "shipping", from: string, to: string): boolean {
+  if (axis === "shipping") throw new Error("o eixo de envio é validado por @pulso/domain (canTransition)");
+  return t.axes[axis].transitions.some((x) => x.from === from && x.to === to);
+}
