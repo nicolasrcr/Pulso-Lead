@@ -46,9 +46,10 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 - **Marco 2 (pagamento):** pedidos + J&T + cobrança em staging
 
 ## Fase 5 — Dashboard confiável
-- [ ] Agregados `dash_daily` por gatilho/cron, `refreshed_at`, alerta de atraso
-- [ ] Seletor de projeto, "Todos os projetos", ranking por projeto
-- [ ] Teste de carga e CSV
+- [x] Agregados `dash_daily` (`app.refresh_dash`, idempotente, lock por projeto) com `dash_refresh.refreshed_at` e alerta de atraso (> 60 min). Gatilho: `POST /v1/dashboard/refresh`; o cron chama a mesma função (jobs)
+- [x] Seletor de projeto, "Todos os projetos" (só projetos onde o usuário tem `dashboard.full`), ranking por projeto, por afiliado, por UF e por dia; cards na web
+- [x] CSV (`/v1/dashboard/export.csv`, com proteção contra CSV injection). Carga: 50 mil pedidos, refresh em ~75 ms e leitura em < 1 ms
+- Premissa adotada (decisão em aberto): projeto = operação separada; o consolidado soma os projetos visíveis
 
 ## Fase 6 — Webhooks de saída, afiliados e migração
 - [ ] `ORDER_CREATE`, `CHARGE_UPDATED`, `SHIPPING_REGISTER`, `SHIPPING_UPDATE` com HMAC, retry e reenvio manual

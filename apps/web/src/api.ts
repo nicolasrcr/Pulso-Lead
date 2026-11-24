@@ -12,6 +12,15 @@ export interface Me {
   capabilities: Record<string, string[]>;
 }
 
+export interface DashSummary {
+  orders: number; grossCents: number; paid: number; paidCents: number; delivered: number; lost: number; returned: number; overdue: number;
+  rates: { conversionBps: number; deliveryBps: number; returnBps: number; lossBps: number; overdueBps: number };
+}
+export interface Dashboard {
+  range: { from: string; to: string }; scope: "project" | "all"; anyStale: boolean; total: DashSummary;
+  byProject: (DashSummary & { projectId: string; name: string; refreshedAt: string | null; stale: boolean })[];
+}
+
 export function createApiClient(o: ApiOptions) {
   const doFetch = o.fetch ?? fetch;
   let projectId: string | null = null;
@@ -42,6 +51,8 @@ export function createApiClient(o: ApiOptions) {
     register: (email: string, name: string, password: string) => call<{ id: string }>("POST", "/v1/auth/register", { email, name, password }),
     me: () => call<Me>("GET", "/v1/me"),
     projects: () => call<{ projects: { id: string; name: string }[] }>("GET", "/v1/projects"),
+    dashboard: () => call<Dashboard>("GET", "/v1/dashboard"),
+    refreshDashboard: () => call<{ rows: number }>("POST", "/v1/dashboard/refresh"),
     kanban: () => call<{ buckets: { key: string; label: string; count: number }[] }>("GET", "/v1/kanban"),
     volume: () => call<VolumeStatus>("GET", "/v1/volume"),
     createProject: (organizationId: string, name: string) => call<{ id: string }>("POST", "/v1/projects", { organizationId, name }),

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { posPagoV1 } from "@pulso/templates";
 import { createApiClient, type Me } from "./api";
+import { formatBps, formatBrl } from "./format";
+import type { Dashboard } from "./api";
 import { volumeMessage, type VolumeStatus } from "./volume";
 
 const store = {
@@ -51,6 +53,8 @@ function Shell({ api, onLogout }: { api: Api; onLogout: () => void }) {
     api.kanban().then((k) => setCounts(Object.fromEntries(k.buckets.map((b) => [b.key, b.count])))).catch(() => setCounts({}));
     api.volume().then(setVolume).catch(() => setVolume(null));
   }, [api, project]);
+  const [dash, setDash] = useState<Dashboard | null>(null);
+  useEffect(() => { api.dashboard().then(setDash).catch(() => setDash(null)); }, [api, project]);
   const vmsg = volume ? volumeMessage(volume) : null;
   const pending = me?.memberships.filter((m) => m.status === "pending").length ?? 0;
   return (
@@ -67,6 +71,23 @@ function Shell({ api, onLogout }: { api: Api; onLogout: () => void }) {
       {vmsg && <p role="status" style={{ color: vmsg.level === "danger" ? "var(--color-danger)" : "var(--color-warning, var(--color-text))" }}>{vmsg.text}</p>}
       {!project && <p style={{ color: "var(--color-muted)" }}>Selecione um projeto para ver o painel de pedidos.</p>}
       {pending > 0 && <p role="status">{pending} cadastro(s) aguardando aprovação.</p>}
+      {dash && (
+        <section aria-label="Painel" style={{ marginTop: "var(--space-4)" }}>
+          {dash.anyStale && <p role="status" style={{ color: "var(--color-danger)" }}>Alguns números estão desatualizados. {project && <button onClick={() => api.refreshDashboard().then(() => api.dashboard()).then(setDash)}>Atualizar agora</button>}</p>}
+          <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+            {[["Pedidos", String(dash.total.orders)], ["Bruto", formatBrl(dash.total.grossCents)], ["Pago", formatBrl(dash.total.paidCents)],
+              ["Conversão", formatBps(dash.total.rates.conversionBps)], ["Inadimplência", formatBps(dash.total.rates.overdueBps)]].map(([k, v]) => (
+              <div key={k} style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)", minWidth: 140 }}>
+                <div style={{ color: "var(--color-muted)" }}>{k}</div><strong>{v}</strong>
+              </div>))}
+          </div>
+          {dash.byProject.length > 1 && (
+            <table style={{ marginTop: "var(--space-3)", borderCollapse: "collapse" }}>
+              <thead><tr><th align="left">Projeto</th><th align="right">Pedidos</th><th align="right">Pago</th><th align="right">Conversão</th></tr></thead>
+              <tbody>{dash.byProject.map((p) => (
+                <tr key={p.projectId}><td>{p.name}{p.stale ? " ⚠" : ""}</td><td align="right">{p.orders}</td><td align="right">{formatBrl(p.paidCents)}</td><td align="right">{formatBps(p.rates.conversionBps)}</td></tr>))}</tbody>
+            </table>)}
+        </section>)}
       <section style={{ display: "flex", gap: "var(--space-3)", overflowX: "auto", marginTop: "var(--space-4)" }}>
         {posPagoV1.kanban.map((b) => (
           <div key={b.key} style={{ minWidth: 200, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
