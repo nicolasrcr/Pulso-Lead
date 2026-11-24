@@ -8,6 +8,7 @@ import { registerAuthRoutes } from "./routes/auth.ts";
 import { registerProjectRoutes } from "./routes/projects.ts";
 import { registerMembershipRoutes } from "./routes/memberships.ts";
 import { registerCatalogRoutes } from "./routes/catalog.ts";
+import { registerCommissionRoutes } from "./routes/commission.ts";
 import { registerOrderRoutes } from "./routes/orders.ts";
 import { makeCpfVault } from "./auth/cpf-vault.ts";
 
@@ -61,6 +62,7 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     registerProjectRoutes(app, pool, authenticate);
     registerMembershipRoutes(app, pool, authenticate);
     registerCatalogRoutes(app, pool, authenticate);
+    registerCommissionRoutes(app, pool, authenticate);
     registerOrderRoutes(app, pool, authenticate, makeCpfVault(deps.cpfKey ?? ""));
   }
   return app;

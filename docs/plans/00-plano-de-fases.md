@@ -39,9 +39,10 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 
 ## Fase 4 — Cobrança, comissão e devoluções
 - [ ] Cobrança Pix/boleto/cartão via `PaymentProvider`
-- [ ] Ledger de comissão (accrual no pagamento; reversal na devolução)
-- [ ] Devoluções: devolvida × descartada; estoque
-- [ ] Job de inadimplência (prazo do projeto, padrão 15 dias) e fluxo Frustrado
+- [x] Ledger de comissão: accrual automático quando o pagamento vira `pago` (percentual em bps ou fixo, centavos inteiros), reversal espelhado na devolução, uma vez cada; ledger e `order_events` só aceitam INSERT (sem UPDATE/DELETE para a aplicação)
+- [x] Devoluções: `returned` repõe a BOM no estoque (se liberado) e `discarded` não; ambas estornam a comissão e levam a plataforma a `devolucao_concluida`
+- [x] Inadimplência: `app.mark_overdue` (dias completos após a entrega > `settings.overdue_grace_days`), idempotente; gatilho manual `POST /v1/overdue/run`. _Pendente:_ agendamento por cron (junto dos jobs da Fase 3). Frustrado segue pela transição manual `inadimplente → frustrado`
+- [x] Correção: `create_order` valida que o afiliado pertence ao projeto (FK ignora RLS)
 - **Marco 2 (pagamento):** pedidos + J&T + cobrança em staging
 
 ## Fase 5 — Dashboard confiável
