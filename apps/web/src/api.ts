@@ -1,3 +1,4 @@
+import type { VolumeStatus } from "./volume";
 export class ApiError extends Error {
   constructor(public status: number, public code: string) { super(`${status} ${code}`); }
 }
@@ -41,6 +42,8 @@ export function createApiClient(o: ApiOptions) {
     register: (email: string, name: string, password: string) => call<{ id: string }>("POST", "/v1/auth/register", { email, name, password }),
     me: () => call<Me>("GET", "/v1/me"),
     projects: () => call<{ projects: { id: string; name: string }[] }>("GET", "/v1/projects"),
+    kanban: () => call<{ buckets: { key: string; label: string; count: number }[] }>("GET", "/v1/kanban"),
+    volume: () => call<VolumeStatus>("GET", "/v1/volume"),
     createProject: (organizationId: string, name: string) => call<{ id: string }>("POST", "/v1/projects", { organizationId, name }),
   };
 }

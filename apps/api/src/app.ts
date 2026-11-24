@@ -3,9 +3,13 @@ import type pg from "pg";
 import { posPagoV1 } from "@pulso/templates";
 import { hashToken } from "./auth/token.ts";
 import { tx, UUID_RE, httpFromPg } from "./db.ts";
+import { HttpError } from "./authz.ts";
 import { registerAuthRoutes } from "./routes/auth.ts";
 import { registerProjectRoutes } from "./routes/projects.ts";
 import { registerMembershipRoutes } from "./routes/memberships.ts";
+import { registerCatalogRoutes } from "./routes/catalog.ts";
+import { registerOrderRoutes } from "./routes/orders.ts";
+import { makeCpfVault } from "./auth/cpf-vault.ts";
 
 const TEMPLATES = { [posPagoV1.key]: posPagoV1 } as const;
 
@@ -13,12 +17,13 @@ declare module "fastify" {
   interface FastifyRequest { userId?: string; projectId?: string }
 }
 
-export interface AppDeps { pool?: pg.Pool }
+export interface AppDeps { pool?: pg.Pool; cpfKey?: string }
 
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
   const app = Fastify({ logger: false });
 
   app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof HttpError) return reply.code(err.status).send({ error: err.error });
     const mapped = httpFromPg(err);
     if (mapped) return reply.code(mapped.status).send({ error: mapped.error });
     const status = (err as { statusCode?: number }).statusCode;
@@ -55,6 +60,8 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     registerAuthRoutes(app, pool, authenticate);
     registerProjectRoutes(app, pool, authenticate);
     registerMembershipRoutes(app, pool, authenticate);
+    registerCatalogRoutes(app, pool, authenticate);
+    registerOrderRoutes(app, pool, authenticate, makeCpfVault(deps.cpfKey ?? ""));
   }
   return app;
 }

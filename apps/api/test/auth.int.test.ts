@@ -34,7 +34,7 @@ run("API — auth, projetos e RBAC (Postgres real, papel app_user)", () => {
   beforeAll(async () => {
     admin = new pg.Pool({ connectionString: ADMIN });
     pool = new pg.Pool({ connectionString: APP });
-    app = buildApp({ pool });
+    app = buildApp({ pool, cpfKey: "c".repeat(64) });
     await admin.query("insert into activity_templates (key, version, definition) values ('pos-pago',1,'{}') on conflict do nothing");
     const mk = async (name: string) => (await admin.query("insert into organizations (name, slug) values ($1,$2) returning id", [name, `${name}-${Date.now()}-${n++}`])).rows[0].id as string;
     const mp = async (org: string, name: string) => (await admin.query("insert into projects (organization_id, name, template_key, template_version) values ($1,$2,'pos-pago',1) returning id", [org, name])).rows[0].id as string;

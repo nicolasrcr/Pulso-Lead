@@ -23,6 +23,7 @@ db/                 Migrations, seed e testes de isolamento (RLS)
 
 ## Desenvolvimento
 Node 22 e pnpm 10. `pnpm install && pnpm test && pnpm typecheck && pnpm lint:sql`.
+API: `DATABASE_URL` (papel `app_user`) e `CPF_KEY` (64 hex, `openssl rand -hex 32`) são obrigatórios.
 Banco: Postgres 16; `DATABASE_URL=postgres://... scripts/run-db-tests.sh`.
 
 Segredos nunca entram no Git (`.env.example` lista as variáveis). Mudanças de banco só por migrations versionadas.

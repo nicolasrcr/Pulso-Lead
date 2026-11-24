@@ -23,10 +23,12 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 - Pendente de operação: limitar tentativas de login (rate limit) e recuperação de senha; entram com o e-mail transacional.
 
 ## Fase 2 — Catálogo, estoque e pedidos
-- [ ] Produto, planos (preço, comissão, BOM), estoque por SKU com mínimo e extrato
-- [ ] Pedido manual (After Pay, agendamento, comprovante ≤ 5 MB), `order_status` em três eixos, `order_events`
-- [ ] Liberação com baixa de estoque atômica e única (`stock_release_once`)
-- [ ] Contador de volume mensal (criados + importados) e alertas 80/100%
+- [x] Produto, planos (preço, BOM) e estoque por SKU com movimentos (`/v1/products`, `/v1/stock-items`). _Pendente:_ regra de comissão por plano na API (campo existe no banco; entra com o ledger) e tela de extrato
+- [x] Pedido manual (After Pay, agendamento), `order_status` em três eixos, `order_events`; CPF cifrado (AES-256-GCM, chave `CPF_KEY` fora do banco) e mascarado, `reveal-cpf` com `audit_log`. _Pendente:_ upload de comprovante ≤ 5 MB (precisa de storage)
+- [x] Liberação com baixa de estoque atômica e única (`app.release_order`; testada com 6 chamadas concorrentes)
+- [x] Contador de volume mensal (criados + importados) e alertas 80/100% que nunca bloqueiam (`app.volume_status`, banner na web)
+- [x] Transição por compare-and-swap (`app.transition_order`), validada pelo template; o eixo de envio fica para os eventos da transportadora (Fase 3)
+- Operação: a API exige `CPF_KEY` (`openssl rand -hex 32`) quando há banco; sem ela não sobe.
 
 ## Fase 3 — J&T, rastreio e entrada de vendas
 - [ ] `JtAdapter` (cotação, etiqueta, cancelamento, rastreio) passando em `runCarrierContract`; credenciais por organização no cofre
