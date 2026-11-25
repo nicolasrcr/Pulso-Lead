@@ -13,7 +13,8 @@ export async function refreshAllDashboards(pool: pg.Pool, systemUserId: string):
 
 /** Marca inadimplentes em todos os projetos (diário). Idempotente. */
 export async function markOverdueAll(pool: pg.Pool, systemUserId: string): Promise<number> {
-  const ids = await tx(pool, { userId: systemUserId }, async (c) => (await c.query("select id from projects")).rows as { id: string }[]);
+  // Organização suspensa é somente leitura: não há o que marcar (e a escrita seria barrada).
+  const ids = await tx(pool, { userId: systemUserId }, async (c) => (await c.query("select id from projects where not app.org_suspended(organization_id)")).rows as { id: string }[]);
   let total = 0;
   for (const p of ids) total += await tx(pool, { userId: systemUserId, projectId: p.id }, async (c) => ((await c.query("select app.mark_overdue($1) as n", [p.id])).rows[0] as { n: number }).n);
   return total;

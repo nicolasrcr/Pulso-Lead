@@ -17,6 +17,9 @@ import { registerImportRoutes } from "./routes/imports.ts";
 import { makeSecretBox } from "./webhooks/secret-box.ts";
 import { makeLimiter } from "./rate-limit.ts";
 import { registerConnectorRoutes } from "./routes/connectors.ts";
+import { registerBackofficeRoutes } from "./routes/backoffice.ts";
+import { registerExportRoutes } from "./routes/export.ts";
+import { consoleReporter, newRequestId, scrub, type ErrorReporter } from "./observability.ts";
 import { makeCarrierFactory, type CarrierFactory } from "./carriers.ts";
 
 const TEMPLATES = { [posPagoV1.key]: posPagoV1 } as const;
@@ -25,10 +28,10 @@ declare module "fastify" {
   interface FastifyRequest { userId?: string; projectId?: string }
 }
 
-export interface AppDeps { pool?: pg.Pool; cpfKey?: string; rateLimit?: { authPerMin: number; publicPerMin: number }; systemUserId?: string; carriers?: CarrierFactory; labelBaseUrl?: string }
+export interface AppDeps { pool?: pg.Pool; cpfKey?: string; rateLimit?: { authPerMin: number; publicPerMin: number }; systemUserId?: string; carriers?: CarrierFactory; labelBaseUrl?: string; reporter?: ErrorReporter }
 
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
-  const app = Fastify({ logger: false, maxParamLength: 256 });
+  const app = Fastify({ logger: false, maxParamLength: 256, genReqId: () => newRequestId() });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.error });
@@ -36,8 +39,8 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     if (mapped) return reply.code(mapped.status).send({ error: mapped.error });
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status < 500) return reply.code(status).send({ error: "bad_request" });
-    app.log.error(err);
-    return reply.code(500).send({ error: "internal_error" });
+    (deps.reporter ?? consoleReporter)({ requestId: String(_req.id), method: _req.method, url: scrub(_req.url), message: (err as Error).message, stack: (err as Error).stack });
+    return reply.code(500).header("x-request-id", String(_req.id)).send({ error: "internal_error", requestId: String(_req.id) });
   });
 
   // Limites de taxa por IP (login/cadastro e links públicos). Desligado quando `rateLimit` não é informado (testes).
@@ -50,7 +53,13 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     });
   }
 
+  app.addHook("onSend", async (req, reply) => { reply.header("x-request-id", String(req.id)); });
   app.get("/health", async () => ({ status: "ok" }));
+  // Prontidão: confirma que o banco responde (usado pelo orquestrador; /health só diz que o processo vive).
+  app.get("/ready", async (_req, reply) => {
+    if (!deps.pool) return reply.code(503).send({ status: "no_database" });
+    try { await deps.pool.query("select 1"); return { status: "ready" }; } catch { return reply.code(503).send({ status: "database_unavailable" }); }
+  });
   app.get<{ Params: { key: string } }>("/v1/templates/:key", async (req, reply) => {
     const t = (TEMPLATES as Record<string, unknown>)[req.params.key];
     if (!t) return reply.code(404).send({ error: "template_not_found" });
@@ -86,6 +95,8 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     registerImportRoutes(app, pool, authenticate, vault);
     const integrationBox = makeSecretBox(deps.cpfKey ?? "", "integration:secret");
     const carriers = deps.carriers ?? makeCarrierFactory(integrationBox, { labelBaseUrl: deps.labelBaseUrl ?? "https://labels.invalid/l" });
+    registerBackofficeRoutes(app, pool, authenticate);
+    registerExportRoutes(app, pool, authenticate);
     registerConnectorRoutes(app, pool, authenticate, { box: integrationBox, vault, carriers, systemUserId: deps.systemUserId });
     registerOrderRoutes(app, pool, authenticate, makeCpfVault(deps.cpfKey ?? ""));
   }

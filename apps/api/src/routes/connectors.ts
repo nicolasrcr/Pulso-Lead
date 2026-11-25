@@ -9,6 +9,7 @@ import type { CarrierFactory } from "../carriers.ts";
 import { PROVIDERS, mapSale, type Provider } from "../sales/mappers.ts";
 import { processSaleEvent } from "../sales/processor.ts";
 import { applyCarrierEvents } from "../tracking/sync.ts";
+import { audit } from "../audit.ts";
 
 export interface ConnectorDeps { box: SecretBox; vault: CpfVault; carriers: CarrierFactory; systemUserId?: string }
 
@@ -27,8 +28,10 @@ export function registerConnectorRoutes(app: FastifyInstance, pool: pg.Pool, aut
     const ctx = as(req);
     const id = await tx(pool, ctx, async (c) => {
       need(await granteeIn(c, ctx.userId, ctx.projectId), "users.manage");
-      return ((await c.query(`insert into sale_connectors (organization_id, project_id, provider, secret_sealed)
+      const cid = ((await c.query(`insert into sale_connectors (organization_id, project_id, provider, secret_sealed)
         select organization_id, id, $2, $3 from projects where id = $1 returning id`, [ctx.projectId, provider, d.box.seal(secret)])).rows[0] as { id: string }).id;
+      await audit(c, ctx.userId, ctx.projectId, "connector.create", "sale_connector", cid, { provider });
+      return cid;
     });
     return reply.code(201).send({ id, provider, path: `/v1/hooks/sales/${id}`, secret });
   });
@@ -82,6 +85,9 @@ export function registerConnectorRoutes(app: FastifyInstance, pool: pg.Pool, aut
     const eventId = mapSale(conn.provider, payload)?.eventId ?? `raw:${createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 40)}`;
     const sys = { userId: d.systemUserId, projectId: conn.projectId };
     const out = await tx(pool, sys, async (c) => {
+      // Organização suspensa não recebe vendas novas (o admin da plataforma ignora o bloqueio de escrita, então checamos aqui).
+      const susp = ((await c.query("select app.org_suspended(organization_id) as s from projects where id = $1", [conn.projectId])).rows[0] as { s: boolean }).s;
+      if (susp) throw new HttpError(423, "organization_suspended");
       const ing = ((await c.query("select app.ingest_sale_event($1,$2,$3,$4::jsonb,true) as r", [conn.projectId, conn.provider, eventId, JSON.stringify(payload)])).rows[0] as { r: { id: string; duplicate: boolean } }).r;
       if (ing.duplicate) return { duplicate: true, status: "duplicate" };
       return { duplicate: false, status: await processSaleEvent(c, d.vault, d.systemUserId!, ing.id) };
@@ -125,7 +131,9 @@ export function registerConnectorRoutes(app: FastifyInstance, pool: pg.Pool, aut
       if (b.isDefault) await c.query("update carrier_accounts set is_default = false where project_id = $1", [ctx.projectId]);
       const r = await c.query(`insert into carrier_accounts (organization_id, project_id, carrier_key, credentials_ref, credentials_sealed, is_default)
         select organization_id, id, 'jt', 'sealed', $2, $3 from projects where id = $1 returning id`, [ctx.projectId, sealed, !!b.isDefault]);
-      return reply.code(201).send({ id: (r.rows[0] as { id: string }).id, env: cr.env });
+      const aid = (r.rows[0] as { id: string }).id;
+      await audit(c, ctx.userId, ctx.projectId, "carrier.create", "carrier_account", aid, { carrier: "jt", env: cr.env });
+      return reply.code(201).send({ id: aid, env: cr.env });
     });
   });
   app.get("/v1/carriers", { preHandler: authenticate }, async (req) => {

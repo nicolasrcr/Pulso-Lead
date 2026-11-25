@@ -5,6 +5,7 @@ import { tx, UUID_RE } from "../db.ts";
 import { granteeIn, need, HttpError } from "../authz.ts";
 import { assertPublicUrl } from "../webhooks/url-guard.ts";
 import type { SecretBox } from "../webhooks/secret-box.ts";
+import { audit } from "../audit.ts";
 
 export const EVENTS = ["ORDER_CREATE", "CHARGE_UPDATED", "SHIPPING_REGISTER", "SHIPPING_UPDATE"] as const;
 const newSecret = () => `whsec_${randomBytes(24).toString("hex")}`;
@@ -73,6 +74,7 @@ export function registerWebhookRoutes(app: FastifyInstance, pool: pg.Pool, authe
       await admin(c, req, pid);
       const r = await c.query("update outbound_webhooks set secret = $2 where id = $1 returning id", [req.params.id, box.seal(secret)]);
       if (!r.rows.length) throw new HttpError(404, "not_found");
+      await audit(c, req.userId!, pid, "webhook.rotate_secret", "outbound_webhook", req.params.id);
     });
     return { secret };
   });

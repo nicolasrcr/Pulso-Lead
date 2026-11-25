@@ -60,9 +60,14 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 - Limite conhecido: DNS que resolve para IP interno só é barrado pela checagem de hostname/IP literal; resolver e validar o IP no envio fica como endurecimento
 
 ## Fase 7 — Backoffice, billing, LGPD e go-live
-- [ ] Back-office do fornecedor: assinaturas, estados, uso; suspensão = somente leitura + exportação
-- [ ] Exportação CSV self-service; descarte seguro; `audit_log`
-- [ ] Observabilidade (Sentry), runbook, **aceite e go-live (Marco 3)**
+- [x] Back-office do fornecedor (`/v1/backoffice/*`, só `platform_admin`): assinatura (plano, mensalidade, cap), máquina de estados (`implantacao → garantia/ativo ⇄ em_atraso → suspenso → encerrado`, motivo obrigatório), visão geral com uso do mês vs. cap, trilha `platform_audit_log` imutável
+- [x] Suspensão/encerramento = **somente leitura**: trigger `app.block_if_suspended` em todas as tabelas de negócio (423 `organization_suspended`); vendas externas, jobs de rastreio e inadimplência pulam a organização; o admin da plataforma ainda reativa/descarta
+- [x] Exportação self-service: `/v1/export/orders.csv` (`orders.read_all`) e `/v1/export/ledger.csv` (`reports.read`); sem CPF, telefone mascarado, proteção contra fórmula; funciona suspensa; auditada
+- [x] Descarte seguro (`discard_org_pii`): só organização `encerrada` há ≥ 30 dias + confirmação com o id; anonimiza clientes e payloads crus; preserva pedidos/ledger; idempotente; auditado
+- [x] `audit_log` ampliado: exportações, criação de conector/conta de transportadora, rotação de segredo de webhook (além do `reveal-cpf`)
+- [x] Observabilidade: `x-request-id` em toda resposta, 5xx com `requestId` (sem detalhe interno) e `ErrorReporter` injetável (padrão: JSON no stderr; Sentry entra por esse gancho sem SDK obrigatório), `/ready` checa o banco, segredos removidos de URLs nos relatos
+- [x] Runbook (`docs/runbook.md`) e checklist de aceite/go-live (`docs/go-live.md`)
+- [ ] **Aceite e go-live (Marco 3)** — depende do cliente e das credenciais (ver `docs/go-live.md`)
 
 ## Depois do go-live
 Fase 5b (segunda atividade), editor de templates na UI, API pública e MCP, checkout próprio, fiscal, notificações, IA nas bordas.

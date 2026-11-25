@@ -51,7 +51,7 @@ export interface SyncResult { polled: number; applied: number; errors: number }
 /** Job: consulta o rastreio dos pedidos em trânsito (os consultados há mais tempo primeiro) e aplica os eventos. */
 export async function syncTrackingAll(pool: pg.Pool, d: SyncDeps): Promise<SyncResult> {
   const out: SyncResult = { polled: 0, applied: 0, errors: 0 };
-  const projects = await tx(pool, { userId: d.systemUserId }, async (c) => (await c.query("select id from projects")).rows as { id: string }[]);
+  const projects = await tx(pool, { userId: d.systemUserId }, async (c) => (await c.query("select id from projects where not app.org_suspended(organization_id)")).rows as { id: string }[]);
   for (const p of projects) {
     const due = await tx(pool, { userId: d.systemUserId, projectId: p.id }, async (c) => (await c.query(
       `select o.id, o.tracking_code, o.carrier_account_id from orders o join order_status s on s.order_id = o.id
