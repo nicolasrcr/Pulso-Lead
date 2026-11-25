@@ -9,6 +9,11 @@ export interface DispatchDeps {
 }
 export interface DispatchResult { delivered: number; retried: number; failed: number }
 
+async function markSync(c: { query(sql: string, p?: unknown[]): Promise<unknown> }, x: Due, ok: boolean, err: string | null) {
+  const orderId = (x.payload as { orderId?: string } | null)?.orderId;
+  if (x.event === "SHIPPING_REGISTER" && orderId) await c.query("select app.mark_tracking_sync($1,$2,$3)", [orderId, ok, err]);
+}
+
 interface Due { id: string; event: string; payload: unknown; attempts: number; created_at: Date; url: string; secret: string }
 
 /**
@@ -44,9 +49,11 @@ export async function dispatchDue(pool: pg.Pool, d: DispatchDeps): Promise<Dispa
       if (!error) {
         await c.query("update webhook_deliveries set status='delivered', attempts=attempts+1, last_status_code=$2, last_error=null, delivered_at=now(), next_attempt_at=null where id=$1", [x.id, code]);
         out.delivered++;
+        await markSync(c, x, true, null);
       } else if (x.attempts + 1 >= MAX_ATTEMPTS) {
         await c.query("update webhook_deliveries set status='failed', attempts=attempts+1, last_status_code=$2, last_error=$3, next_attempt_at=null where id=$1", [x.id, code, error]);
         out.failed++;
+        await markSync(c, x, false, error);
       } else {
         await c.query("update webhook_deliveries set attempts=attempts+1, last_status_code=$2, last_error=$3, next_attempt_at = now() + make_interval(secs => $4) where id=$1", [x.id, code, error, backoffSeconds(x.attempts)]);
         out.retried++;

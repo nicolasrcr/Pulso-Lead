@@ -1,6 +1,8 @@
 import type pg from "pg";
 import { tx } from "./db.ts";
 import { dispatchDue, type DispatchDeps } from "./webhooks/dispatcher.ts";
+import { syncTrackingAll } from "./tracking/sync.ts";
+import type { CarrierFactory } from "./carriers.ts";
 
 /** Atualiza os agregados do dashboard de todos os projetos (a cada hora). */
 export async function refreshAllDashboards(pool: pg.Pool, systemUserId: string): Promise<number> {
@@ -18,9 +20,10 @@ export async function markOverdueAll(pool: pg.Pool, systemUserId: string): Promi
 }
 
 /** Laço de produção: webhooks a cada 10 s, dashboards a cada hora, inadimplência a cada 6 h. Erros não derrubam o processo. */
-export function startJobs(pool: pg.Pool, deps: DispatchDeps, log: (m: string) => void = console.log): () => void {
+export function startJobs(pool: pg.Pool, deps: DispatchDeps, extra: { carriers?: CarrierFactory } = {}, log: (m: string) => void = console.log): () => void {
   const guard = (name: string, fn: () => Promise<unknown>) => () => fn().catch((e) => log(`job ${name} falhou: ${(e as Error).message}`));
   const timers = [
+    ...(extra.carriers ? [setInterval(guard("rastreio", () => syncTrackingAll(pool, { systemUserId: deps.systemUserId, carriers: extra.carriers! })), 300_000)] : []),
     setInterval(guard("webhooks", () => dispatchDue(pool, deps)), 10_000),
     setInterval(guard("dashboards", () => refreshAllDashboards(pool, deps.systemUserId)), 3_600_000),
     setInterval(guard("inadimplencia", () => markOverdueAll(pool, deps.systemUserId)), 6 * 3_600_000),

@@ -83,3 +83,18 @@ begin
 end $$;
 revoke all on function app.public_tracking(text) from public;
 grant execute on function app.public_tracking(text) to app_user;
+
+-- Fila de polling de rastreio: o job revisita primeiro o pedido consultado há mais tempo.
+alter table orders add column tracking_polled_at timestamptz;
+create index orders_tracking_poll_idx on orders (project_id, tracking_polled_at nulls first) where tracking_code is not null;
+
+-- Rota pública do webhook de venda: só devolve o necessário para validar o segredo e ingerir (nunca expõe o selado a clientes).
+do $$ begin
+  execute format('create policy sale_connectors_definer_read on sale_connectors for select to %I using (true)', current_user);
+end $$;
+create or replace function app.connector_lookup(p_id uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('projectId', project_id, 'provider', provider, 'secretSealed', secret_sealed)
+    from sale_connectors where id = p_id and active $$;
+revoke all on function app.connector_lookup(uuid) from public;
+grant execute on function app.connector_lookup(uuid) to app_user;

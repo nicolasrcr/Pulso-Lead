@@ -20,6 +20,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@pulso/carriers':
+        specifier: workspace:*
+        version: link:../../packages/carriers
       '@pulso/domain':
         specifier: workspace:*
         version: link:../../packages/domain

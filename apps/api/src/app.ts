@@ -16,6 +16,8 @@ import { registerWebhookRoutes } from "./routes/webhooks.ts";
 import { registerImportRoutes } from "./routes/imports.ts";
 import { makeSecretBox } from "./webhooks/secret-box.ts";
 import { makeLimiter } from "./rate-limit.ts";
+import { registerConnectorRoutes } from "./routes/connectors.ts";
+import { makeCarrierFactory, type CarrierFactory } from "./carriers.ts";
 
 const TEMPLATES = { [posPagoV1.key]: posPagoV1 } as const;
 
@@ -23,7 +25,7 @@ declare module "fastify" {
   interface FastifyRequest { userId?: string; projectId?: string }
 }
 
-export interface AppDeps { pool?: pg.Pool; cpfKey?: string; rateLimit?: { authPerMin: number; publicPerMin: number } }
+export interface AppDeps { pool?: pg.Pool; cpfKey?: string; rateLimit?: { authPerMin: number; publicPerMin: number }; systemUserId?: string; carriers?: CarrierFactory; labelBaseUrl?: string }
 
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
   const app = Fastify({ logger: false, maxParamLength: 256 });
@@ -43,8 +45,8 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     const auth = makeLimiter(deps.rateLimit.authPerMin, 60_000), pub = makeLimiter(deps.rateLimit.publicPerMin, 60_000);
     app.addHook("onRequest", async (req, reply) => {
       const url = req.url.split("?")[0] ?? "";
-      const lim = url === "/v1/auth/login" || url === "/v1/auth/register" ? auth : url.startsWith("/v1/links/") ? pub : null;
-      if (lim && !lim.take(`${url.startsWith("/v1/links/") ? "l" : "a"}:${req.ip}`)) return reply.code(429).header("retry-after", "60").send({ error: "too_many_requests" });
+      const lim = url === "/v1/auth/login" || url === "/v1/auth/register" ? auth : url.startsWith("/v1/links/") || url.startsWith("/v1/track/") || url.startsWith("/v1/hooks/") ? pub : null;
+      if (lim && !lim.take(`${url.startsWith("/v1/") && lim === pub ? "p" : "a"}:${req.ip}`)) return reply.code(429).header("retry-after", "60").send({ error: "too_many_requests" });
     });
   }
 
@@ -80,7 +82,11 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     registerCommissionRoutes(app, pool, authenticate);
     registerDashboardRoutes(app, pool, authenticate);
     registerWebhookRoutes(app, pool, authenticate, makeSecretBox(deps.cpfKey ?? ""));
-    registerImportRoutes(app, pool, authenticate, makeCpfVault(deps.cpfKey ?? ""));
+    const vault = makeCpfVault(deps.cpfKey ?? "");
+    registerImportRoutes(app, pool, authenticate, vault);
+    const integrationBox = makeSecretBox(deps.cpfKey ?? "", "integration:secret");
+    const carriers = deps.carriers ?? makeCarrierFactory(integrationBox, { labelBaseUrl: deps.labelBaseUrl ?? "https://labels.invalid/l" });
+    registerConnectorRoutes(app, pool, authenticate, { box: integrationBox, vault, carriers, systemUserId: deps.systemUserId });
     registerOrderRoutes(app, pool, authenticate, makeCpfVault(deps.cpfKey ?? ""));
   }
   return app;
