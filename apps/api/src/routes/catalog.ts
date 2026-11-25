@@ -77,6 +77,18 @@ export function registerCatalogRoutes(app: FastifyInstance, pool: pg.Pool, authe
     });
   });
 
+  // Extrato do item (somente leitura): últimos 200 movimentos, do mais novo ao mais antigo.
+  app.get<{ Params: { id: string } }>("/v1/stock-items/:id/movements", { preHandler: authenticate }, async (req, reply) => {
+    const pid = project(req);
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid_item" });
+    return tx(pool, { userId: req.userId!, projectId: pid }, async (c) => {
+      need(await granteeIn(c, req.userId!, pid), "products.manage", "orders.edit", "orders.read_all", "dashboard.full");
+      if (!(await c.query("select 1 from stock_items where id = $1", [req.params.id])).rows.length) throw new HttpError(404, "not_found");
+      return { movements: (await c.query(
+        `select id, delta, reason, order_id as "orderId", created_at as "createdAt" from stock_movements where stock_item_id = $1 order by id desc limit 200`, [req.params.id])).rows };
+    });
+  });
+
   app.post<{ Body: { sku?: string; name?: string; quantity?: number; minQuantity?: number } }>("/v1/stock-items", { preHandler: authenticate }, async (req, reply) => {
     const pid = project(req);
     const { sku, name, quantity = 0, minQuantity = 0 } = req.body ?? {};
