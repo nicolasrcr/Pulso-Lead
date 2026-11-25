@@ -87,6 +87,19 @@ run("API — webhooks de saída, link de afiliado, rastreio, importação e jobs
     expect((await deliveries("pending")).length).toBe(0);
   });
 
+  it("SSRF por DNS: host que resolve para IP interno não é chamado e a entrega é reagendada", async () => {
+    await newOrder({ externalId: `dns-${n++}` });
+    const { f, calls } = respond(200);
+    const r = await dispatchDue(pool, { systemUserId: sys, secretBox: box, fetch: f, resolve: async () => ["10.0.0.9"] });
+    expect(calls.length).toBe(0);
+    expect(r.delivered).toBe(0);
+    expect(r.retried).toBeGreaterThan(0);
+    expect((await deliveries("pending"))[0]!.lastError).toMatch(/interno/);
+    await admin.query("update webhook_deliveries set next_attempt_at = now() where status = 'pending'");
+    const ok = respond(200);
+    expect((await dispatchDue(pool, { systemUserId: sys, secretBox: box, fetch: ok.f, resolve: async () => ["200.147.1.1"] })).delivered).toBeGreaterThan(0);
+  });
+
   it("falha: reagenda com backoff, não reenvia antes da hora, esgota em MAX_ATTEMPTS e permite reenvio manual", async () => {
     await newOrder({ externalId: `fl-${n++}` });
     const bad = respond(500);

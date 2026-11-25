@@ -1,11 +1,11 @@
 import type pg from "pg";
 import { tx } from "../db.ts";
 import { backoffSeconds, MAX_ATTEMPTS, signWebhook } from "./signing.ts";
-import { assertPublicUrl } from "./url-guard.ts";
+import { assertResolvedPublic, dnsResolver, type Resolver } from "./url-guard.ts";
 import type { SecretBox } from "./secret-box.ts";
 
 export interface DispatchDeps {
-  systemUserId: string; secretBox: SecretBox; fetch?: typeof fetch; limit?: number; timeoutMs?: number; now?: () => Date;
+  systemUserId: string; secretBox: SecretBox; fetch?: typeof fetch; resolve?: Resolver; limit?: number; timeoutMs?: number; now?: () => Date;
 }
 export interface DispatchResult { delivered: number; retried: number; failed: number }
 
@@ -22,6 +22,8 @@ interface Due { id: string; event: string; payload: unknown; attempts: number; c
  */
 export async function dispatchDue(pool: pg.Pool, d: DispatchDeps): Promise<DispatchResult> {
   const doFetch = d.fetch ?? fetch;
+  // Com fetch injetado (testes) não há rede real; o DNS real só entra quando o envio é de verdade.
+  const resolve: Resolver = d.resolve ?? (d.fetch ? async () => ["200.147.1.1"] : dnsResolver);
   const out: DispatchResult = { delivered: 0, retried: 0, failed: 0 };
   await tx(pool, { userId: d.systemUserId }, async (c) => {
     const due = (await c.query(
@@ -32,7 +34,7 @@ export async function dispatchDue(pool: pg.Pool, d: DispatchDeps): Promise<Dispa
     for (const x of due) {
       let code: number | null = null, error: string | null = null;
       try {
-        assertPublicUrl(x.url);
+        await assertResolvedPublic(x.url, resolve);
         const body = JSON.stringify({ id: x.id, event: x.event, createdAt: x.created_at, data: x.payload });
         const ts = Math.floor((d.now?.() ?? new Date()).getTime() / 1000);
         const res = await doFetch(x.url, {

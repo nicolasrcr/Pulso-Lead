@@ -1,3 +1,4 @@
+import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 function privateV4(h: string): boolean {
@@ -6,9 +7,36 @@ function privateV4(h: string): boolean {
     || (p[0] === 192 && p[1] === 168) || (p[0] === 100 && p[1] >= 64 && p[1] <= 127) || p[0] >= 224;
 }
 
+function internalIp(ip: string): boolean {
+  const v = isIP(ip);
+  if (v === 4) return privateV4(ip);
+  if (v === 6) {
+    const v4mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip)?.[1];
+    return v4mapped ? privateV4(v4mapped) : /^(::1?|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i.test(ip) || ip === "::";
+  }
+  return true; // não é IP: falha fechada
+}
+
+export type Resolver = (host: string) => Promise<string[]>;
+export const dnsResolver: Resolver = async (host) => (await lookup(host, { all: true, verbatim: true })).map((a) => a.address);
+
+/**
+ * Segunda barreira contra SSRF: resolve o host e recusa a entrega se QUALQUER endereço for interno (cobre DNS que
+ * aponta para rede privada). Falha fechada em erro de DNS ou resposta vazia. IP literal não consulta DNS.
+ * Limite conhecido: entre esta checagem e a conexão o DNS pode mudar (rebinding); só fixar o IP na conexão fecha isso.
+ */
+export async function assertResolvedPublic(raw: string, resolve: Resolver = dnsResolver): Promise<void> {
+  const u = assertPublicUrl(raw);
+  const host = u.hostname.replace(/^\[|\]$/g, "");
+  if (isIP(host)) return;
+  const ips = await resolve(host);
+  if (ips.length === 0) throw new Error("host sem endereço");
+  if (ips.some(internalIp)) throw new Error("destino interno");
+}
+
 /**
  * Só https, sem credenciais, e nunca destinos internos (SSRF). Cobre hostnames óbvios e IP literais.
- * Limite conhecido: DNS que aponta para IP interno só é barrado se o dispatcher também validar o IP resolvido.
+ * O IP resolvido é validado na entrega por `assertResolvedPublic`.
  */
 export function assertPublicUrl(raw: string): URL {
   let u: URL;

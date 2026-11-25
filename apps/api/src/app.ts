@@ -1,3 +1,5 @@
+import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import type pg from "pg";
 import { posPagoV1 } from "@pulso/templates";
@@ -28,10 +30,15 @@ declare module "fastify" {
   interface FastifyRequest { userId?: string; projectId?: string }
 }
 
-export interface AppDeps { pool?: pg.Pool; cpfKey?: string; rateLimit?: { authPerMin: number; publicPerMin: number }; systemUserId?: string; carriers?: CarrierFactory; labelBaseUrl?: string; reporter?: ErrorReporter }
+export interface AppDeps { pool?: pg.Pool; cpfKey?: string; rateLimit?: { authPerMin: number; publicPerMin: number }; systemUserId?: string; carriers?: CarrierFactory; labelBaseUrl?: string; reporter?: ErrorReporter; corsOrigins?: string[] }
 
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
   const app = Fastify({ logger: false, maxParamLength: 256, genReqId: () => newRequestId() });
+
+  // Cabeçalhos de segurança em toda resposta (API JSON/CSV: sem HTML servido, CSP restritiva não atrapalha).
+  void app.register(helmet, { contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } }, crossOriginResourcePolicy: { policy: "same-site" } });
+  // CORS só para as origens configuradas (CORS_ORIGINS); sem lista, só mesma origem (proxy do front).
+  if (deps.corsOrigins?.length) void app.register(cors, { origin: deps.corsOrigins, methods: ["GET", "POST", "PATCH", "DELETE"], allowedHeaders: ["authorization", "content-type", "x-project-id"], maxAge: 600 });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.error });
