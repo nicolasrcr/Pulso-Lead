@@ -54,22 +54,45 @@ export function registerOrderRoutes(app: FastifyInstance, pool: pg.Pool, authent
   });
 
   // Visibilidade: orders.read_all vê o projeto inteiro; senão, só os pedidos que o próprio usuário criou.
-  const listSql = (all: boolean) => `
+  // Paginação por cursor (created_at, id): estável com inserções concorrentes e sem OFFSET. O cursor carrega o
+  // created_at em texto com a precisão total do Postgres (microssegundos), que o Date do JS perderia.
+  const encodeCursor = (createdAt: string, id: string) => Buffer.from(`${createdAt}|${id}`).toString("base64url");
+  const decodeCursor = (raw: string): { at: string; id: string } | null => {
+    const m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,6})?[+-]\d\d(?::?\d\d)?)\|([0-9a-f-]{36})$/i.exec(Buffer.from(raw, "base64url").toString("utf8"));
+    return m && UUID_RE.test(m[2]!) ? { at: m[1]!, id: m[2]! } : null;
+  };
+  const listSql = (all: boolean, keyset: boolean) => {
+    const where = [all ? "" : "o.created_by = $1", keyset ? `(o.created_at, o.id) < ($${all ? 1 : 2}::timestamptz, $${all ? 2 : 3}::uuid)` : ""].filter(Boolean).join(" and ");
+    return `
     select o.id, o.external_id as "externalId", o.total_cents as "totalCents", o.after_pay as "afterPay", o.released_at as "releasedAt",
-           o.created_at as "createdAt", c.name as "customerName", c.phone as "customerPhone",
+           o.created_at as "createdAt", o.created_at::text as "_cursorAt", c.name as "customerName", c.phone as "customerPhone",
            s.platform_status as platform, s.shipping_status as shipping, s.payment_status as payment
       from orders o join order_status s on s.order_id = o.id left join customers c on c.id = o.customer_id
-     ${all ? "" : "where o.created_by = $1"} order by o.created_at desc limit 200`;
+     ${where ? `where ${where}` : ""} order by o.created_at desc, o.id desc limit __LIMIT__`;
+  };
 
-  app.get("/v1/orders", { preHandler: authenticate }, async (req) => {
+  app.get<{ Querystring: { limit?: string; cursor?: string } }>("/v1/orders", { preHandler: authenticate }, async (req, reply) => {
     const pid = project(req);
+    const rawLimit = req.query.limit;
+    const limit = rawLimit === undefined ? 200 : /^\d{1,3}$/.test(rawLimit) ? Number(rawLimit) : NaN;
+    if (!(limit >= 1 && limit <= 200)) return reply.code(400).send({ error: "invalid_limit" });
+    const cur = req.query.cursor === undefined ? null : decodeCursor(req.query.cursor);
+    if (req.query.cursor !== undefined && !cur) return reply.code(400).send({ error: "invalid_cursor" });
     return tx(pool, { userId: req.userId!, projectId: pid }, async (c) => {
       const g = await granteeIn(c, req.userId!, pid);
       need(g, "orders.read_all", "orders.create", "orders.edit", "dashboard.own");
       const t = await templateOf(c, pid);
-      const rows = (await c.query(listSql(can(g, "orders.read_all")), can(g, "orders.read_all") ? [] : [req.userId])).rows as Record<string, any>[];
-      return { orders: rows.map((r) => ({ ...r, customerPhone: r.customerPhone ? maskPhone(r.customerPhone) : null,
-        buckets: deriveBuckets(t, { platform: r.platform, shipping: r.shipping, payment: r.payment }) })) };
+      const all = can(g, "orders.read_all");
+      const params: unknown[] = all ? [] : [req.userId];
+      if (cur) params.push(cur.at, cur.id);
+      params.push(limit + 1);
+      const sql = listSql(all, !!cur).replace("__LIMIT__", `$${params.length}`);
+      const fetched = (await c.query(sql, params)).rows as Record<string, any>[];
+      const rows = fetched.slice(0, limit);
+      const last = rows[rows.length - 1];
+      return { orders: rows.map(({ _cursorAt, ...r }) => ({ ...r, customerPhone: r.customerPhone ? maskPhone(r.customerPhone) : null,
+        buckets: deriveBuckets(t, { platform: r.platform, shipping: r.shipping, payment: r.payment }) })),
+        nextCursor: fetched.length > limit && last ? encodeCursor(last._cursorAt, last.id) : null };
     });
   });
 

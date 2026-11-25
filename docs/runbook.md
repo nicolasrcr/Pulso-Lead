@@ -7,6 +7,8 @@
 | `CPF_KEY` | sim | 64 hex (`openssl rand -hex 32`). Deriva as chaves de CPF, segredos de webhook e credenciais de transportadora/conectores. **Perdê-la torna esses dados ilegíveis**; guarde em cofre e faça backup separado |
 | `SYSTEM_USER_ID` | para jobs | id de um usuário `platform_admin` dedicado (sem login humano). Sem ele: webhooks de saída, dashboards, inadimplência, rastreio e recebimento de vendas externas ficam desligados |
 | `LABEL_BASE_URL` | recomendada | base usada para montar `labelUrl` (o endpoint de PDF ainda não existe; ver `docs/go-live.md`) |
+| `CORS_ORIGINS` | se o front estiver em outra origem | lista separada por vírgula (`https://app.exemplo.com.br`). Vazio = só mesma origem (proxy do front); nenhuma origem é liberada por padrão |
+| `PG_POOL_MAX` · `PG_IDLE_TIMEOUT_MS` · `PG_CONNECT_TIMEOUT_MS` · `PG_STATEMENT_TIMEOUT_MS` · `PG_IDLE_TX_TIMEOUT_MS` | não | limites do pool (padrão 10 · 30 s · 5 s · 30 s · 60 s). Valores inválidos voltam ao padrão |
 | `PORT` | não | padrão 3000 |
 
 Gerar o usuário de sistema: registrar via `POST /v1/auth/register` com senha longa aleatória e marcar `update app_users set platform_admin = true where id = '…'`.
@@ -18,7 +20,7 @@ Gerar o usuário de sistema: registrar via `POST /v1/auth/register` com senha lo
 4. Workers `.js`: `apps/tracking` (rastreio público) e `workers/webhook-ingest` — segredos como Worker secrets, nunca em `wrangler.toml`.
 
 ## Jobs (a cada processo da API com `SYSTEM_USER_ID`)
-webhooks de saída 10 s · rastreio 5 min · dashboards 1 h · inadimplência 6 h. Rodar **uma réplica** dos jobs ou aceitar execuções concorrentes (todos idempotentes; entregas usam `skip locked`).
+webhooks de saída 10 s · rastreio 5 min · dashboards 1 h · inadimplência 6 h. Cada job tem trava de instância (`pg_try_advisory_xact_lock`): com várias réplicas só uma executa o ciclo e as demais o pulam; a trava some no commit/rollback ou se o processo cair. Os jobs continuam idempotentes (entregas usam `skip locked`).
 
 ## Incidentes comuns
 - **Webhook de saída falhando:** `GET /v1/webhooks/deliveries?status=failed`; corrigir a URL do cliente e `POST /v1/webhooks/deliveries/:id/resend`.
@@ -34,3 +36,6 @@ webhooks de saída 10 s · rastreio 5 min · dashboards 1 h · inadimplência 6 
 
 ## Backup/restore
 `pg_dump` diário + teste de restauração mensal. Restaurar exige a mesma `CPF_KEY`.
+
+## Entrega de webhooks e SSRF
+Além de exigir https e recusar IP interno literal, a entrega resolve o DNS e recusa o envio se **qualquer** endereço for interno (a entrega fica `retried` com erro `destino interno`). Limite conhecido: entre a checagem e a conexão o DNS pode mudar (rebinding); fechar isso exige fixar o IP na conexão.

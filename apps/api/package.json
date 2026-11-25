@@ -9,15 +9,17 @@
     "dev": "node --experimental-strip-types src/server.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.4.3",
+    "@fastify/helmet": "^13.2.0",
+    "@pulso/carriers": "workspace:*",
     "@pulso/domain": "workspace:*",
     "@pulso/templates": "workspace:*",
     "fastify": "^5.0.0",
-    "pg": "^8.13.0",
-    "@pulso/carriers": "workspace:*"
+    "pg": "^8.13.0"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",
-    "vitest": "^3.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }

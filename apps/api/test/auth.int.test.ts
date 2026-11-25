@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 import { buildApp } from "../src/app";
 import { PRESETS } from "@pulso/domain";
+import { uniq } from "./helpers";
 
 const ADMIN = process.env.TEST_ADMIN_DATABASE_URL;
 const APP = process.env.TEST_APP_DATABASE_URL;
@@ -9,7 +10,6 @@ const run = ADMIN && APP ? describe : describe.skip;
 
 const PASSWORD = "senha-de-teste-123";
 let n = 0;
-const uniq = (p: string) => `${p}-${Date.now()}-${n++}@t.test`;
 
 run("API — auth, projetos e RBAC (Postgres real, papel app_user)", () => {
   let admin: pg.Pool, app: ReturnType<typeof buildApp>, pool: pg.Pool;

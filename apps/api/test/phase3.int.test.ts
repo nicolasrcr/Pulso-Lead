@@ -8,6 +8,7 @@ import { makeCarrierFactory } from "../src/carriers";
 import { syncTrackingAll, pathTo } from "../src/tracking/sync";
 import { dispatchDue } from "../src/webhooks/dispatcher";
 import { tx } from "../src/db";
+import { uniq } from "./helpers";
 
 const ADMIN = process.env.TEST_ADMIN_DATABASE_URL;
 const APP = process.env.TEST_APP_DATABASE_URL;
@@ -15,7 +16,6 @@ const run = ADMIN && APP ? describe : describe.skip;
 const PASSWORD = "senha-de-teste-123";
 const KEY = "7".repeat(64);
 let n = 0;
-const uniq = (p: string) => `${p}-${Date.now()}-${n++}@t.test`;
 
 run("API — Fase 3: conectores de venda, transportadora J&T (mock), rastreio", () => {
   let admin: pg.Pool, pool: pg.Pool, app: ReturnType<typeof buildApp>;

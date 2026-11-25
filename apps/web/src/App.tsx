@@ -1,20 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { createApiClient, type ApiClient, type Me } from "./api";
 import { errorText } from "./errors";
 import { visiblePages, type PageKey } from "./nav";
 import { Button, Field, Input, Notice } from "./ui";
-import { Afiliados } from "./pages/Afiliados";
-import { Backoffice } from "./pages/Backoffice";
-import { Catalogo } from "./pages/Catalogo";
-import { Equipe } from "./pages/Equipe";
-import { Estoque } from "./pages/Estoque";
-import { Exportar } from "./pages/Exportar";
-import { Importar } from "./pages/Importar";
 import { Painel } from "./pages/Painel";
-import { Pedidos } from "./pages/Pedidos";
-import { Transportadora } from "./pages/Transportadora";
-import { Vendas } from "./pages/Vendas";
-import { Webhooks } from "./pages/Webhooks";
 import type { PageProps } from "./pages/types";
 
 const store = {
@@ -54,6 +43,20 @@ export function Login({ api, onDone }: { api: ApiClient; onDone: () => void }) {
   );
 }
 
+// Páginas carregadas sob demanda: o bundle inicial traz só login, shell e painel.
+const page = <K extends string>(load: () => Promise<Record<K, ComponentType<PageProps>>>, name: K) => lazy(async () => ({ default: (await load())[name] }));
+const Pedidos = page(() => import("./pages/Pedidos"), "Pedidos");
+const Catalogo = page(() => import("./pages/Catalogo"), "Catalogo");
+const Estoque = page(() => import("./pages/Estoque"), "Estoque");
+const Afiliados = page(() => import("./pages/Afiliados"), "Afiliados");
+const Vendas = page(() => import("./pages/Vendas"), "Vendas");
+const Transportadora = page(() => import("./pages/Transportadora"), "Transportadora");
+const Webhooks = page(() => import("./pages/Webhooks"), "Webhooks");
+const Equipe = page(() => import("./pages/Equipe"), "Equipe");
+const Importar = page(() => import("./pages/Importar"), "Importar");
+const Exportar = page(() => import("./pages/Exportar"), "Exportar");
+const Backoffice = page(() => import("./pages/Backoffice"), "Backoffice");
+
 const PAGES: Record<PageKey, (p: PageProps) => ReactNode> = {
   painel: (p) => <Painel api={p.api} projectId={p.projectId} caps={p.caps} />, pedidos: Pedidos, catalogo: Catalogo, estoque: Estoque, afiliados: Afiliados,
   integracoes: Vendas, transportadora: Transportadora, webhooks: Webhooks, equipe: Equipe, importar: Importar, exportar: Exportar, backoffice: Backoffice,
@@ -88,7 +91,7 @@ export function Shell({ api, onLogout }: { api: ApiClient; onLogout: () => void 
       </nav>
       <main style={{ flex: 1, padding: "var(--space-5)", minWidth: 0 }}>
         {!projectId && !me.user.platformAdmin && <Notice>Você ainda não tem acesso a nenhum projeto. Aguarde a aprovação do administrador.</Notice>}
-        {Page && (projectId || current === "backoffice") ? <Page key={`${current}:${projectId}`} api={api} me={me} projectId={projectId} caps={caps} /> : null}
+        {Page && (projectId || current === "backoffice") ? <Suspense fallback={<p role="status">Carregando…</p>}><Page key={`${current}:${projectId}`} api={api} me={me} projectId={projectId} caps={caps} /></Suspense> : null}
       </main>
     </div>
   );

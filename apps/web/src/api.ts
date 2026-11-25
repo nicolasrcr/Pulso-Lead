@@ -73,7 +73,7 @@ export function createApiClient(o: ApiOptions) {
     },
 
     // Pedidos
-    orders: () => call<{ orders: OrderRow[] }>("GET", "/v1/orders"),
+    orders: (cursor?: string) => call<{ orders: OrderRow[]; nextCursor: string | null }>("GET", `/v1/orders${q({ cursor })}`),
     order: (id: string) => call<OrderDetail>("GET", `/v1/orders/${id}`),
     createOrder: (b: { planId: string; affiliateId?: string; totalCents?: number; afterPay?: boolean; customer: { name: string; cpf?: string; phone?: string; email?: string; address?: Record<string, string> } }) =>
       call<{ id: string; created: boolean }>("POST", "/v1/orders", b),

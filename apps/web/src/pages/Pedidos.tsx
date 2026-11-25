@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { posPagoV1 } from "@pulso/templates";
-import type { OrderDetail } from "../api";
+import type { OrderDetail, OrderRow as OrderRowT } from "../api";
 import { formatBrl } from "../format";
 import { parseBrDateTimeLocal, parseMoneyToCents } from "../rules";
 import { ActionMsg, Badge, Button, Card, Field, fmtDate, humanize, Input, Notice, Select, Table, useAction, useLoad } from "../ui";
@@ -14,13 +14,18 @@ export function Pedidos({ api, projectId, caps }: PageProps) {
   const [sel, setSel] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState("");
-  const rows = (list.data?.orders ?? []).filter((o) => !q || `${o.customerName ?? ""} ${o.externalId ?? ""} ${o.id}`.toLowerCase().includes(q.toLowerCase()));
+  const [more, setMore] = useState<{ orders: OrderRowT[]; next: string | null } | null>(null);
+  const more1 = useAction();
+  const loaded = [...(list.data?.orders ?? []), ...(more?.orders ?? [])];
+  const next = more ? more.next : (list.data?.nextCursor ?? null);
+  const reloadAll = () => { setMore(null); list.reload(); };
+  const rows = loaded.filter((o) => !q || `${o.customerName ?? ""} ${o.externalId ?? ""} ${o.id}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <div>
       <Card title="Pedidos" actions={<>
         {caps.includes("orders.create") && <Button onClick={() => setCreating((v) => !v)}>{creating ? "Fechar" : "Novo pedido"}</Button>}
-        <Button kind="secondary" onClick={list.reload}>Atualizar</Button></>}>
-        {creating && <NewOrder api={api} onDone={() => { setCreating(false); list.reload(); }} />}
+        <Button kind="secondary" onClick={reloadAll}>Atualizar</Button></>}>
+        {creating && <NewOrder api={api} onDone={() => { setCreating(false); reloadAll(); }} />}
         <Input aria-label="Buscar" placeholder="Buscar por cliente ou id externo" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: "var(--space-3)" }} />
         {list.error && <Notice kind="error">{list.error}</Notice>}
         <Table rows={rows} rowKey={(o) => o.id} empty="Nenhum pedido." cols={[
@@ -29,8 +34,10 @@ export function Pedidos({ api, projectId, caps }: PageProps) {
           { head: "Plataforma", cell: (o) => <Badge>{label("platform", o.platform)}</Badge> }, { head: "Pagamento", cell: (o) => <Badge tone={o.payment === "pago" ? "ok" : "muted"}>{label("payment", o.payment)}</Badge> },
           { head: "Transporte", cell: (o) => <Badge>{label("shipping", o.shipping)}</Badge> },
         ]} />
+        {next && <Button kind="secondary" disabled={more1.busy} onClick={() => more1.run(async () => { const r = await api.orders(next); setMore({ orders: [...(more?.orders ?? []), ...r.orders], next: r.nextCursor }); })}>Carregar mais</Button>}
+        <ActionMsg msg={more1.msg} />
       </Card>
-      {sel && <OrderPanel key={sel} api={api} id={sel} caps={caps} onClose={() => setSel(null)} onChanged={list.reload} />}
+      {sel && <OrderPanel key={sel} api={api} id={sel} caps={caps} onClose={() => setSel(null)} onChanged={reloadAll} />}
     </div>
   );
 }

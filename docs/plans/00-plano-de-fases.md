@@ -75,3 +75,6 @@ Fase 5b (segunda atividade), editor de templates na UI, API pública e MCP, chec
 
 ## Fase 8 — Telas (feat/08-telas)
 Shell com navegação por permissão (`visiblePages`) e uma página por área da API; endpoint de extrato de estoque (`GET /v1/stock-items/:id/movements`). Limites: sem E2E em navegador; recuperação de senha, comprovante e PDF de etiqueta pendentes.
+
+## Fase 9 — Desempenho e robustez (feat/09-desempenho)
+Sem mudança de regra de negócio: paginação por cursor em `GET /v1/orders` (`limit` 1–200, `nextCursor`; sem parâmetros o contrato é o mesmo), índices (migration 0012), helmet + CORS por lista, SSRF por DNS, trava de jobs entre instâncias, limites no pool, `React.lazy` nas páginas e correção de uma corrida real (resposta enviada antes do COMMIT em 4 rotas; ver testes `commit-before-reply`). Índices **não** foram medidos com `EXPLAIN` em volume real.
