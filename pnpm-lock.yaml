@@ -20,6 +20,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@pulso/carriers':
+        specifier: workspace:*
+        version: link:../../packages/carriers
       '@pulso/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -43,8 +46,17 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.5)
 
+  apps/tracking:
+    devDependencies:
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.5)
+
   apps/web:
     dependencies:
+      '@pulso/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@pulso/templates':
         specifier: workspace:*
         version: link:../../packages/templates
@@ -73,6 +85,22 @@ importers:
       vite:
         specifier: ^7.0.0
         version: 7.3.8(@types/node@22.20.5)
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.5)
+
+  packages/carriers:
+    dependencies:
+      '@pulso/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.5)
 
   packages/domain:
     devDependencies:

@@ -1,10 +1,17 @@
 import type { ShippingStatus } from "./shipping-state";
 
-export interface Address { zip: string; uf: string; city?: string; street?: string; number?: string }
+export interface Address { zip: string; uf: string; city?: string; street?: string; number?: string; district?: string; complement?: string }
 export interface Parcel { weightGrams: number; lengthCm: number; widthCm: number; heightCm: number }
 export interface QuoteInput { origin: Address; destination: Address; parcel: Parcel }
 export interface Quote { carrierKey: string; priceCents: number; etaDays: number }
-export interface ShipmentInput { orderId: string; destination: Address; parcel: Parcel; recipientName: string }
+export interface ShipmentItem { name: string; quantity: number; unitCents: number; ncm?: string }
+export interface ShipmentInvoice { number: string; series: string; accessKey: string; issuedAt: string; issuerTaxId: string }
+export interface ShipmentInput {
+  orderId: string; destination: Address; parcel: Parcel; recipientName: string;
+  /** Exigidos por transportadoras que emitem etiqueta com NF (J&T). Opcionais para o contrato mínimo. */
+  recipientDocument?: string; recipientPhone?: string;
+  items?: ShipmentItem[]; totalCents?: number; invoice?: ShipmentInvoice;
+}
 export interface Shipment { trackingCode: string; labelUrl: string }
 export interface CarrierEvent { trackingCode: string; status: ShippingStatus; occurredAt: Date; rawCode: string }
 

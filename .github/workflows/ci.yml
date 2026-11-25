@@ -19,8 +19,14 @@ jobs:
         with: { node-version-file: .nvmrc, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm test
       - run: pnpm lint:sql
-      - name: Migrations + testes de isolamento (RLS)
-        env: { DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres }
+      - name: Migrations + testes de isolamento e auth (RLS)
+        env: { DATABASE_URL: "postgres://postgres:postgres@localhost:5432/postgres" }
         run: scripts/run-db-tests.sh
+      - name: Papel da aplicação com login (testes de integração da API)
+        run: psql "postgres://postgres:postgres@localhost:5432/postgres" -c "alter role app_user password 'app_pw'"
+      - name: Testes (inclui integração da API com Postgres real como app_user)
+        env:
+          TEST_ADMIN_DATABASE_URL: "postgres://postgres:postgres@localhost:5432/postgres"
+          TEST_APP_DATABASE_URL: "postgres://app_user:app_pw@localhost:5432/postgres"
+        run: pnpm test
