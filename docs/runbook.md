@@ -6,7 +6,7 @@
 | `DATABASE_URL` | sim | Postgres, **papel `app_user`** (sem BYPASSRLS). Nunca o dono do schema |
 | `CPF_KEY` | sim | 64 hex (`openssl rand -hex 32`). Deriva as chaves de CPF, segredos de webhook e credenciais de transportadora/conectores. **Perdê-la torna esses dados ilegíveis**; guarde em cofre e faça backup separado |
 | `SYSTEM_USER_ID` | para jobs | id de um usuário `platform_admin` dedicado (sem login humano). Sem ele: webhooks de saída, dashboards, inadimplência, rastreio e recebimento de vendas externas ficam desligados |
-| `LABEL_BASE_URL` | recomendada | base pública das etiquetas (`https://…/v1/labels`) |
+| `LABEL_BASE_URL` | recomendada | base usada para montar `labelUrl` (o endpoint de PDF ainda não existe; ver `docs/go-live.md`) |
 | `PORT` | não | padrão 3000 |
 
 Gerar o usuário de sistema: registrar via `POST /v1/auth/register` com senha longa aleatória e marcar `update app_users set platform_admin = true where id = '…'`.

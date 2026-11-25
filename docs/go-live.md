@@ -10,6 +10,7 @@ Legenda: ✅ pronto e testado · 🟡 pronto contra contrato/mock, **falta crede
 - 🟡 **J&T**: adapter, assinatura e payload seguem as regras validadas em homologação (03/08/2026); `addOrder` confirmado. Falta: credenciais do cliente, conferir paths de `cancelOrder`/`checkFreight`/`trackingQuery` e o mapa de códigos de scan com a conta real
 - 🟡 **PayT / Braip / B4You / Get Envios**: ingestão idempotente pronta; mapeadores de campo **provisórios** — ajustar com o payload real de cada plataforma (`apps/api/src/sales/mappers.ts`, 1 tabela)
 - ⬜ Cobrança Pix/boleto/cartão (`PaymentProvider`) — o MVP opera pós-pago (pagamento na entrega); depende de provedor
+- ⬜ Download do PDF da etiqueta: `labelUrl` é montada a partir de `LABEL_BASE_URL`, mas o endpoint que busca o PDF na J&T (`waybill`, só funciona em produção) **não foi implementado**
 - ⬜ Upload de comprovante (≤ 5 MB): precisa de storage (R2/S3)
 - ⬜ Recuperação de senha: precisa de e-mail transacional
 - ⬜ Telas: a web tem login, kanban, volume, dashboard. Faltam telas de back-office, conectores, transportadora, catálogo e exportação (a API já cobre tudo)
