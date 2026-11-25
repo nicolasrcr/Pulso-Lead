@@ -49,14 +49,15 @@ export function registerConnectorRoutes(app: FastifyInstance, pool: pg.Pool, aut
     if (!(PROVIDERS as readonly string[]).includes(b.provider ?? "")) return reply.code(400).send({ error: "invalid_provider" });
     const ext = reqStr(b.externalProductId, 200, "invalid_external_product");
     if (!b.planId || !UUID_RE.test(b.planId)) return reply.code(400).send({ error: "invalid_plan" });
-    return tx(pool, ctx, async (c) => {
+    const linkId = await tx(pool, ctx, async (c) => {
       need(await granteeIn(c, ctx.userId, ctx.projectId), "products.manage");
       const r = await c.query(`insert into external_product_links (organization_id, project_id, provider, external_product_id, plan_id)
         select p.organization_id, p.id, $2, $3, pl.id from projects p join product_plans pl on pl.project_id = p.id and pl.id = $4 where p.id = $1
         on conflict (project_id, provider, external_product_id) do update set plan_id = excluded.plan_id returning id`, [ctx.projectId, b.provider, ext, b.planId]);
       if (!r.rows.length) throw new HttpError(400, "invalid_plan");
-      return reply.code(201).send({ id: (r.rows[0] as { id: string }).id });
+      return (r.rows[0] as { id: string }).id;
     });
+    return reply.code(201).send({ id: linkId });
   });
   app.post<{ Body: { provider?: string; email?: string; affiliateId?: string } }>("/v1/affiliate-email-links", { preHandler: authenticate }, async (req, reply) => {
     const b = req.body ?? {}; const ctx = as(req);
@@ -64,14 +65,15 @@ export function registerConnectorRoutes(app: FastifyInstance, pool: pg.Pool, aut
     const email = reqStr(b.email, 200, "invalid_email").toLowerCase();
     if (!/^[^@\s]+@[^@\s]+$/.test(email)) return reply.code(400).send({ error: "invalid_email" });
     if (!b.affiliateId || !UUID_RE.test(b.affiliateId)) return reply.code(400).send({ error: "invalid_affiliate" });
-    return tx(pool, ctx, async (c) => {
+    const linkId = await tx(pool, ctx, async (c) => {
       need(await granteeIn(c, ctx.userId, ctx.projectId), "users.manage");
       const r = await c.query(`insert into affiliate_email_links (organization_id, project_id, provider, email, affiliate_id)
         select p.organization_id, p.id, $2, $3, a.id from projects p join affiliates a on a.project_id = p.id and a.id = $4 where p.id = $1
         on conflict (project_id, provider, email) do update set affiliate_id = excluded.affiliate_id returning id`, [ctx.projectId, b.provider, email, b.affiliateId]);
       if (!r.rows.length) throw new HttpError(400, "invalid_affiliate");
-      return reply.code(201).send({ id: (r.rows[0] as { id: string }).id });
+      return (r.rows[0] as { id: string }).id;
     });
+    return reply.code(201).send({ id: linkId });
   });
 
   // ---- Público: recebe o webhook de venda. Segredo inválido = 401 e NADA é gravado. ----
@@ -126,15 +128,16 @@ export function registerConnectorRoutes(app: FastifyInstance, pool: pg.Pool, aut
     const s = cr.sender ?? {};
     for (const k of ["name", "company", "postCode", "taxNumber", "phone", "prov", "city", "area", "street", "streetNumber"]) reqStr(s[k], 200, "invalid_sender");
     const sealed = d.box.seal(JSON.stringify({ customerCode: cr.customerCode, password: cr.password, apiAccount: cr.apiAccount, privateKey: cr.privateKey, env: cr.env, sender: s }));
-    return tx(pool, ctx, async (c) => {
+    const aid = await tx(pool, ctx, async (c) => {
       need(await granteeIn(c, ctx.userId, ctx.projectId), "users.manage");
       if (b.isDefault) await c.query("update carrier_accounts set is_default = false where project_id = $1", [ctx.projectId]);
       const r = await c.query(`insert into carrier_accounts (organization_id, project_id, carrier_key, credentials_ref, credentials_sealed, is_default)
         select organization_id, id, 'jt', 'sealed', $2, $3 from projects where id = $1 returning id`, [ctx.projectId, sealed, !!b.isDefault]);
-      const aid = (r.rows[0] as { id: string }).id;
-      await audit(c, ctx.userId, ctx.projectId, "carrier.create", "carrier_account", aid, { carrier: "jt", env: cr.env });
-      return reply.code(201).send({ id: aid, env: cr.env });
+      const id = (r.rows[0] as { id: string }).id;
+      await audit(c, ctx.userId, ctx.projectId, "carrier.create", "carrier_account", id, { carrier: "jt", env: cr.env });
+      return id;
     });
+    return reply.code(201).send({ id: aid, env: cr.env });
   });
   app.get("/v1/carriers", { preHandler: authenticate }, async (req) => {
     const ctx = as(req);

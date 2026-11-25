@@ -7,6 +7,7 @@ import { dispatchDue } from "../src/webhooks/dispatcher";
 import { makeSecretBox } from "../src/webhooks/secret-box";
 import { verifyWebhook, MAX_ATTEMPTS } from "../src/webhooks/signing";
 import { refreshAllDashboards, markOverdueAll } from "../src/jobs";
+import { uniq } from "./helpers";
 
 const ADMIN = process.env.TEST_ADMIN_DATABASE_URL;
 const APP = process.env.TEST_APP_DATABASE_URL;
@@ -14,7 +15,6 @@ const run = ADMIN && APP ? describe : describe.skip;
 const PASSWORD = "senha-de-teste-123";
 const KEY = "9".repeat(64);
 let n = 0;
-const uniq = (p: string) => `${p}-${Date.now()}-${n++}@t.test`;
 
 run("API — webhooks de saída, link de afiliado, rastreio, importação e jobs", () => {
   let admin: pg.Pool, pool: pg.Pool, app: ReturnType<typeof buildApp>;

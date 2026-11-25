@@ -30,7 +30,8 @@ export function registerMembershipRoutes(app: FastifyInstance, pool: pg.Pool, au
         return reply.code(400).send({ error: "unknown_capability" });
       capabilities.forEach((c) => caps.add(c));
     }
-    return tx(pool, { userId: req.userId! }, async (c) => {
+    // A resposta só sai depois do COMMIT: responder dentro do callback deixa o cliente ler antes de a escrita existir.
+    const done = await tx(pool, { userId: req.userId! }, async (c) => {
       const target = (await c.query("select organization_id, project_id, role from memberships where id = $1", [id])).rows[0] as
         { organization_id: string; project_id: string | null; role: Role } | undefined;
       if (!target) return reply.code(404).send({ error: "not_found" });
@@ -40,8 +41,9 @@ export function registerMembershipRoutes(app: FastifyInstance, pool: pg.Pool, au
       // Anti-escalada no servidor (o banco repete a checagem de papel).
       if (!canGrant(grantor, { role: target.role, capabilities: [...caps] })) return reply.code(403).send({ error: "forbidden" });
       await c.query("select app.approve_membership($1, $2)", [id, [...caps]]);
-      return reply.code(204).send();
+      return "approved" as const;
     });
+    return done === "approved" ? reply.code(204).send() : done;
   });
 
   app.post<{ Params: { id: string } }>("/v1/memberships/:id/reject", { preHandler: authenticate }, async (req, reply) => {
