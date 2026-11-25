@@ -31,11 +31,11 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 - Operação: a API exige `CPF_KEY` (`openssl rand -hex 32`) quando há banco; sem ela não sobe.
 
 ## Fase 3 — J&T, rastreio e entrada de vendas
-- [ ] `JtAdapter` (cotação, etiqueta, cancelamento, rastreio) passando em `runCarrierContract`; credenciais por organização no cofre
-- [ ] **Homologação J&T** com etiqueta e rastreio reais (começar cedo: depende de terceiros)
-- [ ] Jobs BullMQ: rastreio com retry; `tracking_synced` + reenvio manual
-- [ ] Conectores de venda (PayT, Braip, B4You, Get Envios) com `external_product_links` e `affiliate_email_links`
-- [ ] `apps/tracking`: página pública white-label, selo "Enviado via J&T Express"
+- [x] `JtAdapter` (cotação, etiqueta, cancelamento, rastreio) passando em `runCarrierContract` com transporte mockado: Double Digest, `PP_PM`, `translate` = remetente, valores inteiros em string, CEP de 8 dígitos, `cancelOrder` com `reason` + `orderType '2'`. Credenciais por projeto **seladas** (AES-GCM, subchave `integration:secret`), nunca devolvidas pela API
+- [ ] **Homologação J&T** com etiqueta e rastreio reais — _bloqueada: faltam credenciais._ Só `addOrder` está confirmado em homologação; os paths de `cancelOrder`, `checkFreight` e `trackingQuery` e o mapa de códigos de scan (`events.ts`) são **provisórios** e precisam ser conferidos com a conta real
+- [x] Rastreio: job a cada 5 min (`syncTrackingAll`), mais antigo primeiro, aplica eventos em ordem, nunca regride, pula scans intermediários (`pathTo`), falha de um pedido não derruba o lote; `tracking_synced` marcado pelo dispatcher ao entregar `SHIPPING_REGISTER`; reenvio manual `POST /v1/orders/:id/tracking/resend`. _Sem BullMQ_: fila no Postgres + `setInterval` (suficiente para o volume do MVP)
+- [x] Conectores de venda (PayT, Braip, B4You, Get Envios): URL + segredo por conector, ingestão idempotente `(projeto, provider, event_id)`, `unlinked` até existir vínculo, reprocessamento. _Mapeadores de campo provisórios_ (`sales/mappers.ts`): ajustar com payload real
+- [x] `apps/tracking`: Worker `.js` white-label (marca/cor por variável), selo "Enviado via J&T Express", sem PII, HTML escapado
 
 ## Fase 4 — Cobrança, comissão e devoluções
 - [ ] Cobrança Pix/boleto/cartão via `PaymentProvider`

@@ -1,0 +1,8 @@
+name = "pulso-tracking"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+API_BASE = "https://api.exemplo.com"   # URL pública da API Pulso-Lead
+BRAND_NAME = "Rastreio"                # white-label por domínio/rota
+BRAND_COLOR = "#0b5fff"
