@@ -13,7 +13,8 @@
     "@pulso/templates": "workspace:*",
     "@pulso/ui": "workspace:*",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "@pulso/domain": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

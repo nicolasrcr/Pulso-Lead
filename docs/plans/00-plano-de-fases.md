@@ -71,3 +71,7 @@ Origem: BLUEPRINT seção 12 e 3B.5. Cada tarefa segue TDD (teste falhando → c
 
 ## Depois do go-live
 Fase 5b (segunda atividade), editor de templates na UI, API pública e MCP, checkout próprio, fiscal, notificações, IA nas bordas.
+
+
+## Fase 8 — Telas (feat/08-telas)
+Shell com navegação por permissão (`visiblePages`) e uma página por área da API; endpoint de extrato de estoque (`GET /v1/stock-items/:id/movements`). Limites: sem E2E em navegador; recuperação de senha, comprovante e PDF de etiqueta pendentes.
