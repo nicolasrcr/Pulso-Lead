@@ -1,100 +1,95 @@
-import { useEffect, useMemo, useState } from "react";
-import { posPagoV1 } from "@pulso/templates";
-import { createApiClient, type Me } from "./api";
-import { formatBps, formatBrl } from "./format";
-import type { Dashboard } from "./api";
-import { volumeMessage, type VolumeStatus } from "./volume";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createApiClient, type ApiClient, type Me } from "./api";
+import { errorText } from "./errors";
+import { visiblePages, type PageKey } from "./nav";
+import { Button, Field, Input, Notice } from "./ui";
+import { Afiliados } from "./pages/Afiliados";
+import { Backoffice } from "./pages/Backoffice";
+import { Catalogo } from "./pages/Catalogo";
+import { Equipe } from "./pages/Equipe";
+import { Estoque } from "./pages/Estoque";
+import { Exportar } from "./pages/Exportar";
+import { Importar } from "./pages/Importar";
+import { Painel } from "./pages/Painel";
+import { Pedidos } from "./pages/Pedidos";
+import { Transportadora } from "./pages/Transportadora";
+import { Vendas } from "./pages/Vendas";
+import { Webhooks } from "./pages/Webhooks";
+import type { PageProps } from "./pages/types";
 
 const store = {
   get: () => sessionStorage.getItem("pulso.token"),
   set: (v: string | null) => (v ? sessionStorage.setItem("pulso.token", v) : sessionStorage.removeItem("pulso.token")),
 };
 
-export function App() {
+export function App({ client }: { client?: ApiClient } = {}) {
   const [authed, setAuthed] = useState(!!store.get());
-  const api = useMemo(
-    () => createApiClient({ baseUrl: import.meta.env.VITE_API_URL ?? "", store, onUnauthorized: () => setAuthed(false) }),
-    [],
-  );
+  const api = useMemo(() => client ?? createApiClient({ baseUrl: import.meta.env.VITE_API_URL ?? "", store, onUnauthorized: () => setAuthed(false) }), [client]);
   return authed ? <Shell api={api} onLogout={() => setAuthed(false)} /> : <Login api={api} onDone={() => setAuthed(true)} />;
 }
 
-type Api = ReturnType<typeof createApiClient>;
-
-function Login({ api, onDone }: { api: Api; onDone: () => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+export function Login({ api, onDone }: { api: ApiClient; onDone: () => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [f, setF] = useState({ email: "", name: "", password: "" });
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   return (
     <main style={{ fontFamily: "var(--font-sans)", maxWidth: 360, margin: "10vh auto", padding: "var(--space-6)" }}>
       <h1>Pulso-Lead</h1>
       <form onSubmit={async (e) => {
-        e.preventDefault(); setError(null);
-        try { await api.login(email, password); onDone(); } catch { setError("E-mail ou senha inválidos."); }
+        e.preventDefault(); setError(null); setBusy(true);
+        try { if (mode === "register") await api.register(f.email, f.name, f.password); await api.login(f.email, f.password); onDone(); }
+        catch (err) { setError(mode === "login" ? "E-mail ou senha inválidos." : errorText(err)); }
+        finally { setBusy(false); }
       }}>
-        <label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ display: "block", width: "100%" }} /></label>
-        <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ display: "block", width: "100%" }} /></label>
+        <Field label="E-mail"><Input type="email" value={f.email} onChange={set("email")} required autoComplete="username" /></Field>
+        {mode === "register" && <Field label="Nome"><Input value={f.name} onChange={set("name")} required /></Field>}
+        <Field label="Senha"><Input type="password" value={f.password} onChange={set("password")} required minLength={mode === "register" ? 8 : undefined} autoComplete={mode === "login" ? "current-password" : "new-password"} /></Field>
         {error && <p role="alert" style={{ color: "var(--color-danger)" }}>{error}</p>}
-        <button type="submit" style={{ marginTop: "var(--space-4)", background: "var(--color-brand)", color: "var(--color-onBrand)", border: 0, borderRadius: "var(--radius-md)", padding: "var(--space-2) var(--space-4)" }}>Entrar</button>
+        <Button type="submit" disabled={busy}>{mode === "login" ? "Entrar" : "Criar conta"}</Button>{" "}
+        <Button type="button" kind="secondary" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}>{mode === "login" ? "Criar conta" : "Já tenho conta"}</Button>
       </form>
     </main>
   );
 }
 
-function Shell({ api, onLogout }: { api: Api; onLogout: () => void }) {
+const PAGES: Record<PageKey, (p: PageProps) => ReactNode> = {
+  painel: (p) => <Painel api={p.api} projectId={p.projectId} caps={p.caps} />, pedidos: Pedidos, catalogo: Catalogo, estoque: Estoque, afiliados: Afiliados,
+  integracoes: Vendas, transportadora: Transportadora, webhooks: Webhooks, equipe: Equipe, importar: Importar, exportar: Exportar, backoffice: Backoffice,
+};
+
+export function Shell({ api, onLogout }: { api: ApiClient; onLogout: () => void }) {
   const [me, setMe] = useState<Me | null>(null);
-  const [project, setProject] = useState<string>(""); // "" = Todos os projetos
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [volume, setVolume] = useState<VolumeStatus | null>(null);
-  useEffect(() => { api.me().then(setMe).catch(() => undefined); }, [api]);
-  // Kanban e volume dependem de um projeto selecionado (as capabilities são por projeto).
+  const [error, setError] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string>("");
+  const [page, setPage] = useState<PageKey>((location.hash.slice(1) as PageKey) || "painel");
   useEffect(() => {
-    if (!project) { setCounts({}); setVolume(null); return; }
-    api.kanban().then((k) => setCounts(Object.fromEntries(k.buckets.map((b) => [b.key, b.count])))).catch(() => setCounts({}));
-    api.volume().then(setVolume).catch(() => setVolume(null));
-  }, [api, project]);
-  const [dash, setDash] = useState<Dashboard | null>(null);
-  useEffect(() => { api.dashboard().then(setDash).catch(() => setDash(null)); }, [api, project]);
-  const vmsg = volume ? volumeMessage(volume) : null;
-  const pending = me?.memberships.filter((m) => m.status === "pending").length ?? 0;
+    api.me().then((m) => { setMe(m); const first = m.projects[0]?.id; if (first) { setProjectId(first); api.selectProject(first); } }).catch((e) => setError(errorText(e)));
+  }, [api]);
+  const caps = (projectId && me?.capabilities[projectId]) || [];
+  const pages = me ? visiblePages({ capabilities: caps, platformAdmin: me.user.platformAdmin, hasProject: !!projectId }) : [];
+  const current = pages.some((p) => p.key === page) ? page : pages[0]?.key;
+  const go = (k: PageKey) => { setPage(k); location.hash = k; };
+  if (error) return <main style={{ padding: "var(--space-6)" }}><Notice kind="error">{error}</Notice><Button onClick={onLogout}>Sair</Button></main>;
+  if (!me) return <main style={{ padding: "var(--space-6)" }}>Carregando…</main>;
+  const Page = current ? PAGES[current] : null;
   return (
-    <main style={{ fontFamily: "var(--font-sans)", background: "var(--color-background)", color: "var(--color-text)", minHeight: "100vh", padding: "var(--space-6)" }}>
-      <header style={{ display: "flex", gap: "var(--space-4)", alignItems: "center" }}>
-        <h1 style={{ margin: 0 }}>Pulso-Lead</h1>
-        <select aria-label="Projeto" value={project} onChange={(e) => { setProject(e.target.value); api.selectProject(e.target.value || null); }}>
-          {(me?.projects.length ?? 0) > 1 && <option value="">Todos os projetos</option>}
-          {me?.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <span style={{ marginLeft: "auto", color: "var(--color-muted)" }}>{me?.user.name}</span>
-        <button onClick={async () => { await api.logout().catch(() => undefined); onLogout(); }}>Sair</button>
-      </header>
-      {vmsg && <p role="status" style={{ color: vmsg.level === "danger" ? "var(--color-danger)" : "var(--color-warning, var(--color-text))" }}>{vmsg.text}</p>}
-      {!project && <p style={{ color: "var(--color-muted)" }}>Selecione um projeto para ver o painel de pedidos.</p>}
-      {pending > 0 && <p role="status">{pending} cadastro(s) aguardando aprovação.</p>}
-      {dash && (
-        <section aria-label="Painel" style={{ marginTop: "var(--space-4)" }}>
-          {dash.anyStale && <p role="status" style={{ color: "var(--color-danger)" }}>Alguns números estão desatualizados. {project && <button onClick={() => api.refreshDashboard().then(() => api.dashboard()).then(setDash)}>Atualizar agora</button>}</p>}
-          <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-            {[["Pedidos", String(dash.total.orders)], ["Bruto", formatBrl(dash.total.grossCents)], ["Pago", formatBrl(dash.total.paidCents)],
-              ["Conversão", formatBps(dash.total.rates.conversionBps)], ["Inadimplência", formatBps(dash.total.rates.overdueBps)]].map(([k, v]) => (
-              <div key={k} style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)", minWidth: 140 }}>
-                <div style={{ color: "var(--color-muted)" }}>{k}</div><strong>{v}</strong>
-              </div>))}
-          </div>
-          {dash.byProject.length > 1 && (
-            <table style={{ marginTop: "var(--space-3)", borderCollapse: "collapse" }}>
-              <thead><tr><th align="left">Projeto</th><th align="right">Pedidos</th><th align="right">Pago</th><th align="right">Conversão</th></tr></thead>
-              <tbody>{dash.byProject.map((p) => (
-                <tr key={p.projectId}><td>{p.name}{p.stale ? " ⚠" : ""}</td><td align="right">{p.orders}</td><td align="right">{formatBrl(p.paidCents)}</td><td align="right">{formatBps(p.rates.conversionBps)}</td></tr>))}</tbody>
-            </table>)}
-        </section>)}
-      <section style={{ display: "flex", gap: "var(--space-3)", overflowX: "auto", marginTop: "var(--space-4)" }}>
-        {posPagoV1.kanban.map((b) => (
-          <div key={b.key} style={{ minWidth: 200, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
-            <strong>{b.label}</strong> <span aria-label={`${counts[b.key] ?? 0} pedidos`}>{counts[b.key] ?? 0}</span>
-          </div>
-        ))}
-      </section>
-    </main>
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "var(--font-sans)" }}>
+      <nav aria-label="Principal" style={{ width: 220, padding: "var(--space-4)", borderRight: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
+        <h2 style={{ marginTop: 0 }}>Pulso-Lead</h2>
+        {me.projects.length > 0 && <select aria-label="Projeto" value={projectId} onChange={(e) => { setProjectId(e.target.value); api.selectProject(e.target.value); }} style={{ width: "100%", marginBottom: "var(--space-3)" }}>
+          {me.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+        {pages.map((p) => <button key={p.key} onClick={() => go(p.key)} aria-current={p.key === current ? "page" : undefined}
+          style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderRadius: "var(--radius-sm)", padding: "var(--space-2)", cursor: "pointer", font: "inherit",
+            background: p.key === current ? "var(--color-brand)" : "transparent", color: p.key === current ? "var(--color-onBrand)" : "inherit" }}>{p.label}</button>)}
+        <p style={{ fontSize: 13 }}>{me.user.name}</p>
+        <Button kind="secondary" onClick={async () => { await api.logout().catch(() => undefined); onLogout(); }}>Sair</Button>
+      </nav>
+      <main style={{ flex: 1, padding: "var(--space-5)", minWidth: 0 }}>
+        {!projectId && !me.user.platformAdmin && <Notice>Você ainda não tem acesso a nenhum projeto. Aguarde a aprovação do administrador.</Notice>}
+        {Page && (projectId || current === "backoffice") ? <Page key={`${current}:${projectId}`} api={api} me={me} projectId={projectId} caps={caps} /> : null}
+      </main>
+    </div>
   );
 }

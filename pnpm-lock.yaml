@@ -54,6 +54,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@pulso/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@pulso/templates':
         specifier: workspace:*
         version: link:../../packages/templates

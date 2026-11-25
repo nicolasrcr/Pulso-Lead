@@ -13,7 +13,8 @@ Legenda: ✅ pronto e testado · 🟡 pronto contra contrato/mock, **falta crede
 - ⬜ Download do PDF da etiqueta: `labelUrl` é montada a partir de `LABEL_BASE_URL`, mas o endpoint que busca o PDF na J&T (`waybill`, só funciona em produção) **não foi implementado**
 - ⬜ Upload de comprovante (≤ 5 MB): precisa de storage (R2/S3)
 - ⬜ Recuperação de senha: precisa de e-mail transacional
-- ⬜ Telas: a web tem login, kanban, volume, dashboard. Faltam telas de back-office, conectores, transportadora, catálogo e exportação (a API já cobre tudo)
+- ✅ Telas (fase 8): login/cadastro, painel, pedidos (detalhe, transições, devolução, CPF auditado, etiqueta/rastreio), catálogo (regra de comissão, BOM), estoque (extrato), afiliados/comissões, vendas externas, transportadora, webhooks, equipe, importação, exportação e back-office. Cobertas por testes SSR de renderização; **sem teste E2E em navegador** — fazer um passe manual contra a API de homologação antes do go-live
+- ⬜ Telas ainda ausentes: recuperação de senha, upload de comprovante, download de etiqueta em PDF (dependem de e-mail transacional/storage/endpoint)
 
 ## Limites conhecidos
 - Bloqueio de SSRF por hostname/IP literal; destinos que resolvem para IP privado via DNS não são barrados no envio
